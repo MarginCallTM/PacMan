@@ -1,0 +1,284 @@
+================================================================================
+PACMAN — "Ghosts! More ghosts!" (42 project) — MASTER TODO
+================================================================================
+Legend: [ ] todo   [~] in progress   [x] done
+Team: acombier & Sloubiat (see TEAM SPLIT at the bottom of this file).
+Order roughly follows the recommended build order; tasks 2-4 (data layer)
+and task 5 (rendering sandbox) can be done in parallel by two people.
+
+--------------------------------------------------------------------------------
+0. PROJECT SETUP & TOOLING                                             owner: both (kickoff)
+--------------------------------------------------------------------------------
+[ ] 0.1  Create the git repository (source at root, per subject ch. VII/X)
+[ ] 0.2  Environment management with uv:
+         [ ] uv init: pyproject.toml with requires-python >= 3.10
+         [ ] commit pyproject.toml + uv.lock (reproducible env for both
+             teammates and for the peer review)
+         [ ] .venv/ created by uv -> goes in .gitignore
+         [ ] document the uv workflow in README Instructions
+[ ] 0.3  Declare dependencies via uv add: pygame, and dev group:
+         flake8, mypy, pytest; add mazegenerator from the provided .whl
+         (path/local dependency — verify `uv sync` reinstalls it cleanly
+         on a fresh clone, the package is re-installed at peer review)
+[ ] 0.4  Write .gitignore (venv, __pycache__, .mypy_cache, .pytest_cache,
+         build artifacts, highscore file if generated)
+[ ] 0.5  Write the Makefile with mandatory targets:
+         [ ] install   (uv sync — with a documented pip fallback in case
+                        the review machine has no uv)
+         [ ] run       (uv run python3 pac-man.py config.json)
+         [ ] debug     (uv run python3 -m pdb pac-man.py config.json)
+         [ ] clean     (remove __pycache__, .mypy_cache, .pytest_cache,
+                        etc. — NOT .venv/uv.lock)
+         [ ] lint      (uv run flake8 . && uv run mypy . --warn-return-any
+                        --warn-unused-ignores --ignore-missing-imports
+                        --disallow-untyped-defs --check-untyped-defs)
+         [ ] lint-strict (optional: flake8 . && mypy . --strict)
+         [ ] test      (optional: uv run pytest)
+[ ] 0.6  Create the package skeleton (empty modules with docstrings):
+         pacman/{config.py, maze_loader.py, highscores.py},
+         pacman/entities/{player.py, ghost.py, pellets.py},
+         pacman/game/{level.py, engine.py, states.py},
+         pacman/ui/{renderer.py, menus.py}, tests/, project-management/
+[ ] 0.7  Verify `make lint` passes on the empty skeleton (pipeline green
+         from day one — no "we'll clean it later")
+
+--------------------------------------------------------------------------------
+1. ENTRY POINT: pac-man.py                                             owner: Sloubiat
+--------------------------------------------------------------------------------
+[ ] 1.1  Argument parsing: EXACTLY one argument (the JSON config file);
+         wrong count -> usage message + clean exit (no traceback)
+[ ] 1.2  Top-level error guard: try/except around the whole program so ANY
+         unhandled error prints a clear message, never a Python traceback
+[ ] 1.3  Wire together: load config -> load highscores -> start engine
+
+--------------------------------------------------------------------------------
+2. CONFIG MODULE (pacman/config.py)                                    owner: A (acombier)
+--------------------------------------------------------------------------------
+[ ] 2.1  Comment stripping: remove lines starting with '#' before
+         json.loads (optionally also // and /* */)
+[ ] 2.2  Define GameConfig dataclass with all keys + safe defaults:
+         highscore_filename, level[] (width/height per level, >= 10 levels),
+         lives=3, pacgum=42, points_per_pacgum=10,
+         points_per_super_pacgum=50, points_per_ghost=200, seed=42,
+         level_max_time=90
+[ ] 2.3  Validation & clamping: wrong type / negative / absurd value ->
+         clamp to default + log a clear message, then CONTINUE
+[ ] 2.4  Unknown keys -> ignored (with a log line)
+[ ] 2.5  Handle: missing file, unreadable file, empty file, non-JSON,
+         non-object root — clean error message, no traceback
+[ ] 2.6  Enforce minimum maze size (>= ~15x10, mazegenerator "42" pattern)
+[ ] 2.7  Write config.json (commented example) shipped at repo root
+[ ] 2.8  pytest: comments stripped, bad types clamped, missing keys
+         defaulted, unknown keys ignored, empty/corrupt file handled
+[ ] 2.9  DEFENSE DRILL: prepare 5+ evil config files (evaluator WILL swap
+         the config) and test each one
+
+--------------------------------------------------------------------------------
+3. MAZE LOADER (pacman/maze_loader.py) — anti-corruption layer         owner: A (acombier)
+--------------------------------------------------------------------------------
+[ ] 3.1  Only module importing mazegenerator; call
+         MazeGenerator(size=(w,h), perfect=False, seed=...) — the real API,
+         NOT the package README (which is wrong)
+[ ] 3.2  Normalize coordinates once: everything downstream uses (x, y);
+         grid indexed maze[y][x]; wall bitmask N=1 E=2 S=4 W=8
+[ ] 3.3  Raise sys.setrecursionlimit proportionally to width*height BEFORE
+         generating (package uses recursive DFS, blows up past ~31x31)
+[ ] 3.4  try/except RecursionError + generic Exception -> clean failure
+         message ("if the generator fails, handle the error cleanly")
+[ ] 3.5  Expose helpers: can_move(x, y, direction), is_solid(x, y)
+         (value 15 = "42" pattern block), corridor list
+[ ] 3.6  Handle shortest_path being False (typed str | bool) if used
+[ ] 3.7  seed semantics: level 1 = fixed config seed (42);
+         levels 2+ -> seed=0 (system randomness)
+[ ] 3.8  pytest: seed reproducibility, wall symmetry between neighbors,
+         value-15 cells excluded, RecursionError path, size clamping
+
+--------------------------------------------------------------------------------
+4. HIGHSCORES (pacman/highscores.py)                                   owner: A (acombier)
+--------------------------------------------------------------------------------
+[ ] 4.1  Storage: JSON file (path from config highscore_filename);
+         document the "why JSON" choice in README
+[ ] 4.2  Load at game start with context manager; missing or corrupt
+         file -> start with empty list, log message, no crash
+[ ] 4.3  Validate entries: name max 10 chars, alphanumeric + spaces only;
+         score = non-negative integer; drop invalid entries
+[ ] 4.4  Keep top 10 only, sorted descending (name + score)
+[ ] 4.5  Save at game end (context manager, atomic-ish write)
+[ ] 4.6  pytest: corrupt file, name validation, top-10 trimming,
+         sort order, round-trip load/save
+
+--------------------------------------------------------------------------------
+5. RENDERER SANDBOX (pacman/ui/renderer.py)                            owner: Sloubiat
+--------------------------------------------------------------------------------
+[ ] 5.1  pygame window init, cell-size computation from maze dimensions
+[ ] 5.2  Draw maze walls from the bitmask (line per wall bit);
+         value-15 cells drawn as filled blue blocks (the "42" pattern)
+[ ] 5.3  Draw the player (position + facing direction)
+[ ] 5.4  Keyboard input: arrows AND WASD, 4-direction movement,
+         corridor-only (uses maze_loader.can_move)
+[ ] 5.5  Grid-to-pixel conversion helpers (single source of truth)
+[ ] 5.6  Playable sandbox milestone: walk a maze on screen
+[ ] 5.7  Draw pellets, super-pellets, ghosts (per-state colors:
+         chase / frightened / eaten), HUD (see 9.2)
+
+--------------------------------------------------------------------------------
+6. PELLETS & SCORING (pacman/entities/pellets.py)                      owner: A (acombier)
+--------------------------------------------------------------------------------
+[ ] 6.1  Pacgum placement in most corridors (exclude value-15 cells,
+         player start cell, corners reserved for super-pacgums)
+[ ] 6.2  Super-pacgums in the 4 corners of the maze
+[ ] 6.3  Consumption on player contact -> +points_per_pacgum /
+         +points_per_super_pacgum
+[ ] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
+[ ] 6.5  Win condition: level complete when all pacgums eaten
+[ ] 6.6  Score rule: score NEVER decreases; carries over between levels
+[ ] 6.7  pytest: placement rules, consumption, win detection
+
+--------------------------------------------------------------------------------
+7. PLAYER & GHOSTS (pacman/entities/)                                  owner: A (acombier)
+--------------------------------------------------------------------------------
+[ ] 7.1  Player class: position, direction, lives (from config),
+         movement validation, respawn at maze center
+[ ] 7.2  Ghost class with state machine: CHASE / FRIGHTENED / EATEN
+[ ] 7.3  Ghost AI strategies (small, explainable-in-2-min classes):
+         [ ] strategy A: direct chase (BFS distance to player)
+         [ ] strategy B: random at intersections
+         [ ] strategy C: ambush (target ahead of player) — optional variety
+[ ] 7.4  Frightened behavior: flee from player (maximize distance)
+[ ] 7.5  Eaten: ghost returns to / respawns at its corner after a
+         configurable delay (~5-10 s)
+[ ] 7.6  4 ghosts spawn one per corner; player spawns middle
+[ ] 7.7  Collisions: ghost touches player (not frightened) -> lose a life,
+         respawn player center; game over at 0 lives
+[ ] 7.8  Player eats frightened ghost -> +points_per_ghost, ghost -> EATEN
+[ ] 7.9  pytest: state transitions, BFS chase step, respawn timer,
+         collision outcomes
+
+--------------------------------------------------------------------------------
+8. GAME ENGINE & LEVELS (pacman/game/)                                 owner: both (pair)
+--------------------------------------------------------------------------------
+[ ] 8.1  states.py: state enum MENU / PLAYING / PAUSED / GAME_OVER /
+         VICTORY (+ name-entry state) and transition rules
+[ ] 8.2  level.py: one level = maze + pellets + entities + countdown
+         timer (level_max_time from config)
+[ ] 8.3  engine.py: main loop (events -> update -> render), fixed
+         timestep / clock
+[ ] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
+         random; score and lives carry over
+[ ] 8.5  Timer expiry behavior: DECIDE it (e.g., lose a life / restart
+         level) and DOCUMENT it in README
+[ ] 8.6  Pause / resume during gameplay
+[ ] 8.7  Game end (win or lose): show final score -> name prompt ->
+         save highscore -> back to main menu
+[ ] 8.8  Keep engine + entities pygame-free (unit-testable); only ui/
+         imports pygame
+
+--------------------------------------------------------------------------------
+9. UI SCREENS & HUD (pacman/ui/menus.py)                               owner: Sloubiat
+--------------------------------------------------------------------------------
+[ ] 9.1  Main menu: Start Game / View Highscores (top 10 + names) /
+         Instructions (controls + rules + cheat keys) / Exit
+[ ] 9.2  In-game HUD, always visible: score, lives, level, remaining time
+[ ] 9.3  Pause menu: Resume / Return to main menu
+[ ] 9.4  Game Over screen: final score + name entry prompt
+[ ] 9.5  Victory screen: final score + congratulatory message + name entry
+[ ] 9.6  Name input widget: live validation (max 10 chars, alphanumeric
+         + spaces only)
+
+--------------------------------------------------------------------------------
+10. CHEAT MODE (in engine, keys documented)                            owner: both (pair)
+--------------------------------------------------------------------------------
+[ ] 10.1  Invincibility toggle (no life lost on ghost contact)
+[ ] 10.2  Level skip (instantly win current level)
+[ ] 10.3  Ghost freeze (ghosts stop moving)
+[ ] 10.4  Extra lives (add lives)
+[ ] 10.5  Speed boost (player moves faster)
+[ ] 10.6  Document all cheat keys in README + in the Instructions screen
+          (must genuinely help the reviewer test everything)
+
+--------------------------------------------------------------------------------
+11. PACKAGING & DEPLOYMENT (Itch.io)                                   owner: A (acombier)
+--------------------------------------------------------------------------------
+[ ] 11.1  Choose + write the packaging script/spec (e.g., PyInstaller or
+          zipped source + install script) — kept at repo root
+[ ] 11.2  Include minimal in-package instructions (controls, options,
+          config file usage)
+[ ] 11.3  Test the package on a clean machine/venv (fully functional)
+[ ] 11.4  Create Itch.io page: free, unlisted build; upload
+[ ] 11.5  Rehearse REGENERATING the package live (asked during review)
+
+--------------------------------------------------------------------------------
+12. PROJECT MANAGEMENT (project-management/)                           owner: both
+--------------------------------------------------------------------------------
+[ ] 12.1  Timeline: Gantt or Kanban (set up early, keep it alive)
+[ ] 12.2  Progress tracking vs plan (update regularly, keep the deltas)
+[ ] 12.3  Project analysis & technical choices document
+[ ] 12.4  Risk analysis + mitigation (e.g., mazegenerator quirks, config
+          swap at defense, pygame packaging, uv missing on the review
+          machine -> pip fallback)
+[ ] 12.5  Team organization: who did what, how decisions were made,
+          how issues were handled (2-person split)
+[ ] 12.6  Acceptance test plan: features tested, bugs found/fixed
+[ ] 12.7  Summary of blocking points / conflicts
+
+--------------------------------------------------------------------------------
+13. README.md (English, at repo root)                                  owner: Sloubiat
+--------------------------------------------------------------------------------
+[ ] 13.1  First line, in italics: "This project has been created as part
+          of the 42 curriculum by <login1>, <login2>."
+[ ] 13.2  Description section (goal + brief overview)
+[ ] 13.3  Instructions section (install, run, controls, Makefile targets)
+[ ] 13.4  Resources section: references + HOW AI WAS USED (which tasks,
+          which parts) — mandatory per subject ch. II/IX
+[ ] 13.5  Configuration section: every key, type, default, clamping rules
+[ ] 13.6  Highscore section: how it works + why this storage choice
+[ ] 13.7  Maze Generation section: how the A-Maze-ing package is used
+          (real API, seed policy, error handling)
+[ ] 13.8  Implementation section: technical summary
+[ ] 13.9  General Software Architecture section: modules, classes,
+          relationships (small diagram)
+[ ] 13.10 Project Management section: overview + link to
+          project-management/
+
+--------------------------------------------------------------------------------
+14. QUALITY GATES (continuous, before every commit)                    owner: both
+--------------------------------------------------------------------------------
+[ ] 14.1  flake8 clean on the whole repo
+[ ] 14.2  mypy clean with the mandatory flags (aim for --strict)
+[ ] 14.3  Type hints + Google-style docstrings on every function/class
+[ ] 14.4  try/except on anything that can fail; context managers for
+          all file access
+[ ] 14.5  pytest suite green (config, maze adapter, highscores, entities)
+
+--------------------------------------------------------------------------------
+15. DEFENSE PREPARATION                                                owner: both
+--------------------------------------------------------------------------------
+[ ] 15.1  Each teammate can explain EVERY function (cross-review sessions)
+[ ] 15.2  Config-swap drill: run the game against the evil configs (2.9)
+[ ] 15.3  Recode drills (few-minute live changes), e.g.:
+          - add a 5th ghost
+          - change the ghost respawn delay
+          - store the date in the highscore file
+          - change a HUD element / a color
+          - add a new config key with validation
+[ ] 15.4  Rehearse justifying architecture choices (anti-corruption
+          layer, pygame-free logic, state machine, ghost strategies)
+[ ] 15.5  Rehearse regenerating the Itch.io package live
+[ ] 15.6  Double-check file names in the repo before submission
+
+================================================================================
+MILESTONES (suggested)
+  M1: 0-1 done, lint green                    (setup)
+  M2: 2-4 done + tests                        (data layer)
+  M3: 5 done                                  (playable sandbox)
+  M4: 6-8 done                                (full game loop)
+  M5: 9-10 done                               (UI + cheats)
+  M6: 11-13 done                              (ship it)
+  M7: 14-15 continuously + final rehearsal    (defense-ready)
+
+TEAM SPLIT (agreed):
+  acombier: 2, 3, 4 (data layer), then 6, 7 (entities), 11 (packaging)
+  Sloubiat: 1 (entry point), 5 (rendering sandbox), 9 (menus/HUD),
+            13 (README)
+  Pair:     0 (kickoff), 8 (engine), 10 (cheats), 12, 14, 15
+================================================================================
