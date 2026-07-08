@@ -1,0 +1,1 @@
+"""Main game loop: state machine, collisions, scoring, cheat mode."""

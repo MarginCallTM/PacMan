@@ -1,0 +1,1 @@
+"""Screen state enum and transition rules."""

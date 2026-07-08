@@ -1,0 +1,1 @@
+"""Ghosts: state machine (chase/frightened/eaten) and AI strategies."""
