@@ -1,0 +1,18 @@
+[project]
+name = "pacman"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "mazegenerator",
+    "pygame>=2.6.1",
+]
+
+[tool.uv.sources]
+mazegenerator = { path = "mazegenerator-2.0.2-py3-none-any.whl" }
+
+[dependency-groups]
+dev = [
+    "flake8>=7.3.0",
+    "mypy>=2.2.0",
+    "pytest>=9.1.1",
+]

@@ -9,38 +9,49 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 0. PROJECT SETUP & TOOLING                                             owner: both (kickoff)
 --------------------------------------------------------------------------------
-[ ] 0.1  Create the git repository (source at root, per subject ch. VII/X)
-[ ] 0.2  Environment management with uv:
-         [ ] uv init: pyproject.toml with requires-python >= 3.10
-         [ ] commit pyproject.toml + uv.lock (reproducible env for both
+[x] 0.1  Create the git repository (source at root, per subject ch. VII/X)
+[~] 0.2  Environment management with uv:
+         [x] uv init: pyproject.toml with requires-python >= 3.10
+         [x] commit pyproject.toml + uv.lock (reproducible env for both
              teammates and for the peer review)
-         [ ] .venv/ created by uv -> goes in .gitignore
-         [ ] document the uv workflow in README Instructions
-[ ] 0.3  Declare dependencies via uv add: pygame, and dev group:
+         [x] .venv/ created by uv -> goes in .gitignore
+         [ ] document the uv workflow in README Instructions (-> task 13)
+[x] 0.3  Declare dependencies via uv add: pygame, and dev group:
          flake8, mypy, pytest; add mazegenerator from the provided .whl
          (path/local dependency — verify `uv sync` reinstalls it cleanly
          on a fresh clone, the package is re-installed at peer review)
-[ ] 0.4  Write .gitignore (venv, __pycache__, .mypy_cache, .pytest_cache,
+         NOTE: provided .whl is misnamed (filename version 00001 vs 2.0.2
+         in its metadata; pip/uv reject mismatched wheels) -> committed a
+         byte-identical copy renamed mazegenerator-2.0.2-py3-none-any.whl;
+         the original stays available in git history. Fresh-clone uv sync
+         verified OK (relative path in [tool.uv.sources]).
+[x] 0.4  Write .gitignore (venv, __pycache__, .mypy_cache, .pytest_cache,
          build artifacts, highscore file if generated)
-[ ] 0.5  Write the Makefile with mandatory targets:
-         [ ] install   (uv sync — with a documented pip fallback in case
+[x] 0.5  Write the Makefile with mandatory targets:
+         [x] install   (uv sync — with a documented pip fallback in case
                         the review machine has no uv)
-         [ ] run       (uv run python3 pac-man.py config.json)
-         [ ] debug     (uv run python3 -m pdb pac-man.py config.json)
-         [ ] clean     (remove __pycache__, .mypy_cache, .pytest_cache,
+         [x] run       (uv run python3 pac-man.py config.json)
+         [x] debug     (uv run python3 -m pdb pac-man.py config.json)
+         [x] clean     (remove __pycache__, .mypy_cache, .pytest_cache,
                         etc. — NOT .venv/uv.lock)
-         [ ] lint      (uv run flake8 . && uv run mypy . --warn-return-any
+         [x] lint      (uv run flake8 . && uv run mypy . --warn-return-any
                         --warn-unused-ignores --ignore-missing-imports
                         --disallow-untyped-defs --check-untyped-defs)
-         [ ] lint-strict (optional: flake8 . && mypy . --strict)
-         [ ] test      (optional: uv run pytest)
-[ ] 0.6  Create the package skeleton (empty modules with docstrings):
-         pacman/{config.py, maze_loader.py, highscores.py},
-         pacman/entities/{player.py, ghost.py, pellets.py},
-         pacman/game/{level.py, engine.py, states.py},
-         pacman/ui/{renderer.py, menus.py}, tests/, project-management/
-[ ] 0.7  Verify `make lint` passes on the empty skeleton (pipeline green
+         [x] lint-strict (optional: flake8 . && mypy . --strict)
+         [x] test      (optional: uv run pytest)
+         NOTE: flake8 config lives in .flake8 (extend-exclude = .venv);
+         flake8 does NOT read pyproject.toml and does NOT skip .venv by
+         default.
+[~] 0.6  Create the package skeleton (empty modules with docstrings):
+         [~] pacman/{__init__.py, config.py, maze_loader.py, highscores.py}
+             + pac-man.py created, but still 0-byte: ADD MODULE DOCSTRINGS
+         [ ] pacman/entities/{__init__.py, player.py, ghost.py, pellets.py}
+         [ ] pacman/game/{__init__.py, level.py, engine.py, states.py}
+         [ ] pacman/ui/{__init__.py, renderer.py, menus.py}
+         [ ] tests/, project-management/
+[~] 0.7  Verify `make lint` passes on the empty skeleton (pipeline green
          from day one — no "we'll clean it later")
+         (green on the current partial skeleton; re-check after 0.6 done)
 
 --------------------------------------------------------------------------------
 1. ENTRY POINT: pac-man.py                                             owner: Sloubiat

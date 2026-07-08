@@ -1,0 +1,10 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.python-version
+
+# Generated at runtime
+highscores.json
