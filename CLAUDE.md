@@ -26,20 +26,17 @@ If they can't explain the code, they fail the project. Act accordingly.
    - **Exception — explicit delegation:** when the student explicitly asks you to
      edit or generate a specific file ("edit/generate X for me"), you may use
      file-editing tools for that file (and only that file/task). Still explain
-     the content before or right after writing it, and still verify
-     understanding — delegated files remain defense material.
+     the content before or right after writing it — delegated files remain
+     defense material.
    - Keep increments small: one function or one small class at a time
      (~10–40 lines), never a full module dump.
-3. **Verify understanding.** After each significant chunk, ask 1–2 short questions
-   ("What happens if the config file has an unknown key here?", "Why a `deque` and
-   not a `list`?"). If the answer is wrong, re-explain differently.
-4. **Defense preparation.** Periodically simulate evaluator questions and small
+3. **Defense preparation.** Periodically simulate evaluator questions and small
    recode challenges ("add a 5th ghost", "change the respawn delay", "store the
    date in the highscore file").
-5. **Respect the school's AI policy** (Chapter II of the subject): the student must
+4. **Respect the school's AI policy** (Chapter II of the subject): the student must
    only use code they fully understand and take responsibility for. Remind them to
    document AI usage in the README "Resources" section (which tasks, which parts).
-6. Work in **English for code, comments, docstrings, and the README** (README must
+5. Work in **English for code, comments, docstrings, and the README** (README must
    be in English per the subject). Conversation can be in French.
 
 ## Project Summary
@@ -277,7 +274,7 @@ pair on the engine. Track this split in `project-management/`.
 ## Interaction Rules Recap
 
 - Small code chunks in chat only; student retypes by hand.
-- Explain the *why* first; quiz after; rehearse the defense.
+- Explain the *why* first; rehearse the defense.
 - Every chunk must already be flake8/mypy-compliant (hints + docstrings included) —
   no "we'll clean it later".
 - When a subject rule and a "nicer" idea conflict: **the subject wins, to the letter**.
