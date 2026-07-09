@@ -1,0 +1,39 @@
+# Pacman game configuration ("Ghosts! More ghosts!", 42 project).
+# Lines whose fist non-blank character is '#' are comments.
+# Inline comments are not supported. Every key is optional: a missing
+# or invalid value falls back to a safe default (see README)
+{
+    # Where the persistent top-10 highscores are stored (JSON).
+    "highscore_filename": "highscores.json",
+
+    # Player starting lives (integer >= 1, default 3).
+    "lives": 3,
+
+    # Target number of pacgums per level (integer >= 1, default 42).
+    "pacgum": 42,
+
+    # Scoring (non-negative integers).
+    "points_per_pacgum": 10,
+    "points_per_super_pacgum": 50,
+    "points_per_ghost": 200,
+
+    # Seed for level 1 (integer >= 1); levels 2+ are random.
+    "seed": 42,
+
+    # Time limit per level, in seconds (integer >= 10, default 90).
+    "level_max_time": 90,
+
+    # At least 10 levels; width >= 15, height >= 10.
+    "level": [
+        {"width": 15, "height": 10},
+        {"width": 16, "height": 11},
+        {"width": 17, "height": 12},
+        {"width": 18, "height": 13},
+        {"width": 19, "height": 14},
+        {"width": 20, "height": 15},
+        {"width": 21, "height": 16},
+        {"width": 22, "height": 17},
+        {"width": 23, "height": 18},
+        {"width": 24, "height": 19}
+    ]
+}
