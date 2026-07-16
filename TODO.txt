@@ -42,16 +42,24 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          NOTE: flake8 config lives in .flake8 (extend-exclude = .venv);
          flake8 does NOT read pyproject.toml and does NOT skip .venv by
          default.
-[~] 0.6  Create the package skeleton (empty modules with docstrings):
-         [~] pacman/{__init__.py, config.py, maze_loader.py, highscores.py}
-             + pac-man.py created, but still 0-byte: ADD MODULE DOCSTRINGS
-         [ ] pacman/entities/{__init__.py, player.py, ghost.py, pellets.py}
-         [ ] pacman/game/{__init__.py, level.py, engine.py, states.py}
-         [ ] pacman/ui/{__init__.py, renderer.py, menus.py}
-         [ ] tests/, project-management/
-[~] 0.7  Verify `make lint` passes on the empty skeleton (pipeline green
+[x] 0.6  Create the package skeleton (empty modules with docstrings):
+         [x] pacman/{__init__.py, config.py, maze_loader.py, highscores.py}
+             + pac-man.py (module docstrings added)
+         [x] pacman/entities/{__init__.py, player.py, ghost.py, pellets.py}
+         [x] pacman/game/{__init__.py, level.py, engine.py, states.py}
+         [x] pacman/ui/{__init__.py, renderer.py, menus.py}
+         [x] tests/, project-management/
+[x] 0.7  Verify `make lint` passes on the empty skeleton (pipeline green
          from day one — no "we'll clean it later")
-         (green on the current partial skeleton; re-check after 0.6 done)
+         (2026-07-16: flake8 + mypy green on the full skeleton + config.py;
+         fixed W292 missing final newline on all 16 skeleton files)
+[!] 0.8  SUBJECT v1.5 UPDATE (2026-07-16): graphical library rule hardened —
+         every function used must have an MLX equivalent. pygame.draw.*,
+         mixer, alpha, rotations are now FORBIDDEN. Rendering must be
+         framebuffer-style (per-pixel writes into a buffer + blit + text +
+         key hooks only). Library choice (pygame-framebuffer vs tkinter)
+         to be settled BEFORE task 5. See CLAUDE.md "Graphics Library Rule".
+         Data layer (tasks 2-4) unaffected.
 
 --------------------------------------------------------------------------------
 1. ENTRY POINT: pac-man.py                                             owner: Sloubiat
@@ -65,20 +73,24 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 2. CONFIG MODULE (pacman/config.py)                                    owner: A (acombier)
 --------------------------------------------------------------------------------
-[ ] 2.1  Comment stripping: remove lines starting with '#' before
-         json.loads (optionally also // and /* */)
-[ ] 2.2  Define GameConfig dataclass with all keys + safe defaults:
+[x] 2.1  Comment stripping: remove lines starting with '#' before
+         json.loads (comment lines blanked, not removed, so JSON error
+         line numbers still match the original file)
+[x] 2.2  Define GameConfig dataclass with all keys + safe defaults:
          highscore_filename, level[] (width/height per level, >= 10 levels),
          lives=3, pacgum=42, points_per_pacgum=10,
          points_per_super_pacgum=50, points_per_ghost=200, seed=42,
          level_max_time=90
-[ ] 2.3  Validation & clamping: wrong type / negative / absurd value ->
-         clamp to default + log a clear message, then CONTINUE
-[ ] 2.4  Unknown keys -> ignored (with a log line)
-[ ] 2.5  Handle: missing file, unreadable file, empty file, non-JSON,
-         non-object root — clean error message, no traceback
-[ ] 2.6  Enforce minimum maze size (>= ~15x10, mazegenerator "42" pattern)
-[ ] 2.7  Write config.json (commented example) shipped at repo root
+[x] 2.3  Validation & clamping: wrong type -> default, out of range ->
+         clamped to bounds + log a clear message, then CONTINUE
+         (NOTE: bool rejected explicitly — bool is a subclass of int)
+[x] 2.4  Unknown keys -> ignored (with a log line)
+[x] 2.5  Handle: missing file, unreadable file, empty file, non-JSON,
+         non-object root — fatal cases raise ConfigError (caught by the
+         pac-man.py top-level guard, task 1.2), no traceback
+[x] 2.6  Enforce minimum maze size (15x10 min, 41x41 max; fewer than 10
+         levels -> padded with default 21x15)
+[x] 2.7  Write config.json (commented example) shipped at repo root
 [ ] 2.8  pytest: comments stripped, bad types clamped, missing keys
          defaulted, unknown keys ignored, empty/corrupt file handled
 [ ] 2.9  DEFENSE DRILL: prepare 5+ evil config files (evaluator WILL swap
@@ -87,20 +99,25 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 3. MAZE LOADER (pacman/maze_loader.py) — anti-corruption layer         owner: A (acombier)
 --------------------------------------------------------------------------------
-[ ] 3.1  Only module importing mazegenerator; call
+[x] 3.1  Only module importing mazegenerator; call
          MazeGenerator(size=(w,h), perfect=False, seed=...) — the real API,
          NOT the package README (which is wrong)
-[ ] 3.2  Normalize coordinates once: everything downstream uses (x, y);
+         (real API probe-verified on 2026-07-16: maze[y][x], values 0-15,
+         seed reproducible, wall symmetry OK)
+[x] 3.2  Normalize coordinates once: everything downstream uses (x, y);
          grid indexed maze[y][x]; wall bitmask N=1 E=2 S=4 W=8
-[ ] 3.3  Raise sys.setrecursionlimit proportionally to width*height BEFORE
-         generating (package uses recursive DFS, blows up past ~31x31)
-[ ] 3.4  try/except RecursionError + generic Exception -> clean failure
-         message ("if the generator fails, handle the error cleanly")
-[ ] 3.5  Expose helpers: can_move(x, y, direction), is_solid(x, y)
-         (value 15 = "42" pattern block), corridor list
-[ ] 3.6  Handle shortest_path being False (typed str | bool) if used
-[ ] 3.7  seed semantics: level 1 = fixed config seed (42);
-         levels 2+ -> seed=0 (system randomness)
+         (frozen dataclass Maze, tuple grid -> immutable; _normalize
+         revalidates shape + cell bounds, never trusts the package)
+[x] 3.3  Raise sys.setrecursionlimit proportionally to width*height BEFORE
+         generating (w*h*4 + 1000; package uses recursive DFS)
+[x] 3.4  try/except RecursionError + generic Exception -> MazeError with
+         a clean message ("if the generator fails, handle cleanly")
+[x] 3.5  Expose helpers: can_move(x, y, direction), is_solid(x, y),
+         corridors(), nearest_corridor(), center(), corners()
+[x] 3.6  shortest_path NOT used by our design -> nothing to handle
+         (ghost AI will use our own BFS on the normalized Maze)
+[x] 3.7  seed semantics: level 1 = fixed config seed (42);
+         levels 2+ -> RANDOM_SEED constant (0 = system randomness)
 [ ] 3.8  pytest: seed reproducibility, wall symmetry between neighbors,
          value-15 cells excluded, RecursionError path, size clamping
 

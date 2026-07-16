@@ -1,0 +1,28 @@
+# Pac-Man configuration file (42 project)
+# Lines starting with '#' are comments and are ignored by the game.
+{
+    # Where the top-10 highscores are persisted.
+    "highscore_filename": "highscores.json",
+    # One entry per level; at least 10 levels are played.
+    "level": [
+        {"width": 21, "height": 15},
+        {"width": 21, "height": 15},
+        {"width": 23, "height": 15},
+        {"width": 23, "height": 17},
+        {"width": 25, "height": 17},
+        {"width": 25, "height": 19},
+        {"width": 27, "height": 19},
+        {"width": 27, "height": 21},
+        {"width": 29, "height": 21},
+        {"width": 31, "height": 23},
+    ],
+    "lives": 3,
+    "pacgum": 42,
+    "points_per_pacgum": 10,
+    "points_per_super_pacgum": 50,
+    "points_per_ghost": 200,
+    # Seed for level 1 only; levels 2+ are fully random.
+    "seed": 42,
+    # Seconds per level.
+    "level_max_time": 90
+}
