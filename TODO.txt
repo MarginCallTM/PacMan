@@ -124,14 +124,15 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 4. HIGHSCORES (pacman/highscores.py)                                   owner: A (acombier)
 --------------------------------------------------------------------------------
-[ ] 4.1  Storage: JSON file (path from config highscore_filename);
-         document the "why JSON" choice in README
-[ ] 4.2  Load at game start with context manager; missing or corrupt
+[x] 4.1  Storage: JSON file (path from config highscore_filename);
+         document the "why JSON" choice in README (-> task 13.6)
+[x] 4.2  Load at game start with context manager; missing or corrupt
          file -> start with empty list, log message, no crash
-[ ] 4.3  Validate entries: name max 10 chars, alphanumeric + spaces only;
+[x] 4.3  Validate entries: name max 10 chars, alphanumeric + spaces only;
          score = non-negative integer; drop invalid entries
-[ ] 4.4  Keep top 10 only, sorted descending (name + score)
-[ ] 4.5  Save at game end (context manager, atomic-ish write)
+[x] 4.4  Keep top 10 only, sorted descending (name + score)
+[x] 4.5  Save at game end (context manager, atomic-ish write:
+         write to .tmp then os.replace — old file intact on crash)
 [ ] 4.6  pytest: corrupt file, name validation, top-10 trimming,
          sort order, round-trip load/save
 
