@@ -1,0 +1,9 @@
+# every single value has a wrong type
+
+{
+    "highscore_filename": 42,
+    "lives": "three",
+    "pacgum": true,
+    "seed": null,
+    "level": "not an array"
+}

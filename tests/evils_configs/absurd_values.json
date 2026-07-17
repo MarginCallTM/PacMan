@@ -1,0 +1,10 @@
+# Valid JSON absurd value inside
+
+{
+    "lives": -99,
+    "pacgum": 999999999,
+    "seed": -1,
+    "level_max_time": 0,
+    "level": [{"width": -5, "height": 9000}, "not a dict"]
+}
+

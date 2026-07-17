@@ -53,13 +53,21 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          from day one — no "we'll clean it later")
          (2026-07-16: flake8 + mypy green on the full skeleton + config.py;
          fixed W292 missing final newline on all 16 skeleton files)
-[!] 0.8  SUBJECT v1.5 UPDATE (2026-07-16): graphical library rule hardened —
+[x] 0.8  SUBJECT v1.5 UPDATE (2026-07-16): graphical library rule hardened —
          every function used must have an MLX equivalent. pygame.draw.*,
          mixer, alpha, rotations are now FORBIDDEN. Rendering must be
          framebuffer-style (per-pixel writes into a buffer + blit + text +
-         key hooks only). Library choice (pygame-framebuffer vs tkinter)
-         to be settled BEFORE task 5. See CLAUDE.md "Graphics Library Rule".
-         Data layer (tasks 2-4) unaffected.
+         key hooks only). See CLAUDE.md "Graphics Library Rule".
+         RESOLVED 2026-07-17: reference = school MLX "mlx_CLXV v2.2"
+         (real mlx.h + official Python ctypes wrapper), local copy in
+         project-management/reference/minimlx/ (NOT committed - school
+         code, reference only). Decision: pygame-framebuffer, every
+         pygame call mapped 1:1 to a real mlx.h function (mapping table
+         to go in README, task 13.8/13.9). Extra allowances found in the
+         real API vs our assumptions: mouse hooks, PNG/XPM image loading,
+         clear window, screen size, key autorepeat ctrl, loop_exit.
+         Still forbidden: draw.*, mixer/sound, rotation, alpha, and
+         pygame.time (MLX has no clock -> timing via stdlib `time`).
 
 --------------------------------------------------------------------------------
 1. ENTRY POINT: pac-man.py                                             owner: Sloubiat
@@ -91,10 +99,13 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [x] 2.6  Enforce minimum maze size (15x10 min, 41x41 max; fewer than 10
          levels -> padded with default 21x15)
 [x] 2.7  Write config.json (commented example) shipped at repo root
-[ ] 2.8  pytest: comments stripped, bad types clamped, missing keys
+[x] 2.8  pytest: comments stripped, bad types clamped, missing keys
          defaulted, unknown keys ignored, empty/corrupt file handled
-[ ] 2.9  DEFENSE DRILL: prepare 5+ evil config files (evaluator WILL swap
+         (tests/test_config.py, green 2026-07-17)
+[x] 2.9  DEFENSE DRILL: prepare 5+ evil config files (evaluator WILL swap
          the config) and test each one
+         (5 files in tests/evils_configs/ + parametrized pytest asserting
+         GameConfig-or-ConfigError, never a traceback)
 
 --------------------------------------------------------------------------------
 3. MAZE LOADER (pacman/maze_loader.py) — anti-corruption layer         owner: A (acombier)
@@ -118,8 +129,9 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          (ghost AI will use our own BFS on the normalized Maze)
 [x] 3.7  seed semantics: level 1 = fixed config seed (42);
          levels 2+ -> RANDOM_SEED constant (0 = system randomness)
-[ ] 3.8  pytest: seed reproducibility, wall symmetry between neighbors,
-         value-15 cells excluded, RecursionError path, size clamping
+[x] 3.8  pytest: seed reproducibility, wall symmetry between neighbors,
+         value-15 cells excluded, garbage grids -> MazeError
+         (tests/test_maze_loader.py, green 2026-07-17)
 
 --------------------------------------------------------------------------------
 4. HIGHSCORES (pacman/highscores.py)                                   owner: A (acombier)
@@ -133,8 +145,9 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [x] 4.4  Keep top 10 only, sorted descending (name + score)
 [x] 4.5  Save at game end (context manager, atomic-ish write:
          write to .tmp then os.replace — old file intact on crash)
-[ ] 4.6  pytest: corrupt file, name validation, top-10 trimming,
+[x] 4.6  pytest: corrupt file, name validation, top-10 trimming,
          sort order, round-trip load/save
+         (tests/test_highscores.py, green 2026-07-17)
 
 --------------------------------------------------------------------------------
 5. RENDERER SANDBOX (pacman/ui/renderer.py)                            owner: Sloubiat
