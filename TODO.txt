@@ -166,15 +166,24 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 6. PELLETS & SCORING (pacman/entities/pellets.py)                      owner: A (acombier)
 --------------------------------------------------------------------------------
-[ ] 6.1  Pacgum placement in most corridors (exclude value-15 cells,
+[x] 6.1  Pacgum placement in most corridors (exclude value-15 cells,
          player start cell, corners reserved for super-pacgums)
-[ ] 6.2  Super-pacgums in the 4 corners of the maze
-[ ] 6.3  Consumption on player contact -> +points_per_pacgum /
+         (seeded RNG -> reproducible layout; 'pacgum' config key = count,
+         clamped to available cells; done 2026-07-17)
+[x] 6.2  Super-pacgums in the 4 corners of the maze
+[~] 6.3  Consumption on player contact -> +points_per_pacgum /
          +points_per_super_pacgum
-[ ] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
-[ ] 6.5  Win condition: level complete when all pacgums eaten
-[ ] 6.6  Score rule: score NEVER decreases; carries over between levels
-[ ] 6.7  pytest: placement rules, consumption, win detection
+         (pellets side done: eat() returns PelletType; the points mapping
+         happens in engine.py, task 8)
+[~] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
+         (pellets side done: eat() returns SUPER; the trigger + timer
+         happen in engine.py, task 8)
+[x] 6.5  Win condition: level complete when all pacgums eaten
+         (all_eaten(); DECISION: super-pacgums count too -> README)
+[~] 6.6  Score rule: score NEVER decreases; carries over between levels
+         (pure engine rule, task 8 — nothing to do in pellets.py)
+[x] 6.7  pytest: placement rules, consumption, win detection
+         (tests/test_pellets.py, 8 tests, green 2026-07-17)
 
 --------------------------------------------------------------------------------
 7. PLAYER & GHOSTS (pacman/entities/)                                  owner: A (acombier)
