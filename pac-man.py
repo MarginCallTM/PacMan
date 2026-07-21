@@ -1,19 +1,49 @@
+from typing import Any
+
 from pacman.maze_loader import generate_maze
+from pacman.ui.menus import InstructionsScreen, MainMenu
 from pacman.ui.mlx_window import MlxWindow
 from pacman.ui.renderer import MazeRenderer
 
 
 def main() -> None:
-    """Sandbox entry point: generate a maze and display it (task 5)."""
+    """Show the main menu, then the maze sandbox on Start Game."""
     maze = generate_maze(15, 15, 12)
     window = MlxWindow()
-    renderer = MazeRenderer(window)
-
-    renderer.load(maze)
     window.create_window("PacMan")
-    window.hook_key(renderer.handle_key)
+
+    menu = MainMenu(window)
+    instructions = InstructionsScreen(window)
+    maze_renderer = MazeRenderer(window)
+    maze_renderer.load(maze)
+
+    def show_menu(*_: Any) -> None:
+        menu.render_if_dirty()
+        if menu.chosen == "Start Game":
+            menu.chosen = None
+            window.hook_key(maze_renderer.handle_key)
+            window.hook_loop(maze_renderer.render_if_dirty)
+        elif menu.chosen == "Instructions":
+            menu.chosen = None
+            instructions.refresh()
+            window.hook_key(instructions.handle_key)
+            window.hook_loop(show_instructions)
+        elif menu.chosen == "Exit":
+            window.destroy()
+        elif menu.chosen is not None:
+            menu.chosen = None  # Highscores: not built yet
+
+    def show_instructions(*_: Any) -> None:
+        instructions.render_if_dirty()
+        if instructions.done:
+            instructions.done = False
+            menu.refresh()
+            window.hook_key(menu.handle_key)
+            window.hook_loop(show_menu)
+
+    window.hook_key(menu.handle_key)
+    window.hook_loop(show_menu)
     window.hook_close_icon(window.destroy)
-    window.hook_loop(renderer.render_if_dirty)
     window.start_loop()
 
 
