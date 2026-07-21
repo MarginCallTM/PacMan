@@ -16,10 +16,11 @@ def test_spawns_chasing() -> None:
 
 
 def test_frighten_starts_timer() -> None:
-    """A super-pacgum flips the ghost to FRIGHTENED for N ticks"""
+    """A super-pacgum flips the ghost to FRIGHTENED for N ticks."""
     ghost = make_ghost()
-    assert ghost.state is GhostState.CHASE
-    assert ghost.timer == 0
+    ghost.frighten(10)
+    assert ghost.state is GhostState.FRIGHTENED
+    assert ghost.timer == 10
 
 
 def test_second_super_pacgum_resets_timer() -> None:
