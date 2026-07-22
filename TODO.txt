@@ -75,10 +75,14 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          tarball in project-management/reference/minimlx/. Tasks 0.9,
          5, 8.8 and 11 updated below; data layer & game logic (2-4,
          6-8) are graphics-free by design -> unaffected.
-[ ] 0.9  MLX switch cleanup: drop the pygame dependency from
-         pyproject/uv.lock once ui/ is ported; decide how the MLX
-         wrapper ships in the repo (school code — check what we are
-         allowed to commit; likely vendored sources + build step)
+[x] 0.9  MLX switch cleanup: pygame dropped from pyproject/uv.lock
+         (Sloubiat, merged 2026-07-22); MLX ships as
+         mlx-2.2-py3-none-any.whl committed at repo root
+         ([tool.uv.sources], same pattern as mazegenerator).
+         NOTE: libmlx.so inside the wheel is a Linux/X11 ELF binary
+         -> the game window only runs on Linux; on acombier's macOS
+         Mlx() raises OSError but imports/lint/pytest all work.
+         Packaging (task 11) must state the Linux/X11 requirement.
 
 --------------------------------------------------------------------------------
 1. ENTRY POINT: pac-man.py                                             owner: Sloubiat
@@ -88,6 +92,11 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [ ] 1.2  Top-level error guard: try/except around the whole program so ANY
          unhandled error prints a clear message, never a Python traceback
 [ ] 1.3  Wire together: load config -> load highscores -> start engine
+         NOTE 2026-07-22: pac-man.py currently holds Sloubiat's
+         TEMPORARY sandbox main (menu -> maze view, hardcoded 15x15
+         maze, no arg parsing, module docstring dropped) — task 1
+         must rewrite it to the launch contract and restore the
+         module docstring
 
 --------------------------------------------------------------------------------
 2. CONFIG MODULE (pacman/config.py)                                    owner: A (acombier)
@@ -166,10 +175,13 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [x] 5.1  MLX window init (pacman/ui/mlx_window.py: MlxWindow — generic,
          reusable buffer/hooks wrapper, no game knowledge), cell-size
          computation from maze dimensions (MazeRenderer.load)
-[~] 5.2  Draw maze walls from the bitmask (line per wall bit) — done in
-         MazeRenderer._draw. value-15 cells currently filled with the
-         same wall color as regular walls, NOT a distinct blue block
-         yet (the "42" pattern isn't visually called out — polish left)
+[x] 5.2  Draw maze walls from the bitmask (line per wall bit) — done in
+         MazeRenderer._draw; value-15 cells ARE drawn as filled blue
+         blocks + white outline (_SOLID_COLOR) — previous note was
+         stale vs the merged code. Tested headlessly: fake pixel
+         buffer injected in place of the MLX image, pixels read back
+         (tests/test_ui_headless.py, 4 tests, green 2026-07-22 —
+         fill_rect bounds, background, SOLID blue, NORTH walls white)
 [ ] 5.3  Draw the player (position + facing direction)
 [ ] 5.4  Keyboard input: arrows AND WASD, 4-direction movement,
          corridor-only (uses maze_loader.can_move)
@@ -243,8 +255,9 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [ ] 7.7  Collisions: ghost touches player (not frightened) -> lose a life,
          respawn player center; game over at 0 lives
 [ ] 7.8  Player eats frightened ghost -> +points_per_ghost, ghost -> EATEN
-[~] 7.9  pytest: state transitions, BFS chase step, respawn timer,
-         collision outcomes
+[x] 7.9  pytest: state transitions, BFS chase step, respawn timer,
+         collision outcomes (entity side DONE; collision outcomes
+         belong to the engine and move to task 8 tests)
          (player: tests/test_player.py, 7 tests on a handcrafted 3x3
          "plus" maze, green 2026-07-20; ghost: tests/test_ghost.py
          covers state transitions + respawn timer, tests/test_ghost_ai.py
@@ -265,10 +278,23 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          raises ValueError on illegal moves; DECISION: no EXIT state,
          quitting = engine `running` flag -> README;
          tests/test_states.py, 6 tests, green 2026-07-22 — 82 total)
-[ ] 8.2  level.py: one level = maze + pellets + entities + countdown
+[x] 8.2  level.py: one level = maze + pellets + entities + countdown
          timer (level_max_time from config)
-[ ] 8.3  engine.py: main loop (events -> update -> render), fixed
+         (Level dataclass + build_level factory — seed policy lvl 1
+         fixed / lvl 2+ random, 4 ghosts with cycling personalities
+         Chase/Random (5th-ghost drill ready), lives passed in for
+         carry-over, ticks countdown; tests/test_level.py, 7 tests,
+         green 2026-07-22 — 93 total)
+[~] 8.3  engine.py: main loop (events -> update -> render), fixed
          timestep / clock
+         (increment 1 designed 2026-07-22, RETYPE PENDING — engine.py
+         is still the bare skeleton. Plan: to_ticks() seconds->ticks,
+         TICKS_PER_SECOND=8, monotonic-clock accumulator in update(),
+         MAX_TICKS_PER_UPDATE=4 clamp so an OS freeze pauses instead
+         of fast-forwarding, accumulator drained outside PLAYING so
+         pause never builds catch-up ticks. Then inc 2: player tick +
+         pellets + score; inc 3: ghosts + collisions; inc 4: level
+         progression + pause + game end)
 [ ] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
          random; score and lives carry over
 [ ] 8.5  Timer expiry behavior: DECIDE it (e.g., lose a life / restart
@@ -283,8 +309,14 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 9. UI SCREENS & HUD (pacman/ui/menus.py)                               owner: Sloubiat
 --------------------------------------------------------------------------------
-[ ] 9.1  Main menu: Start Game / View Highscores (top 10 + names) /
+[~] 9.1  Main menu: Start Game / View Highscores (top 10 + names) /
          Instructions (controls + rules + cheat keys) / Exit
+         (Sloubiat, merged 2026-07-22: MainMenu with 4 options,
+         arrow+enter navigation, selected-button highlight;
+         InstructionsScreen static text. Missing: highscores view,
+         cheat keys in the instructions text. Defense note: labels
+         drawn AFTER present() because mlx_string_put writes to the
+         window, not the buffer — order is load-bearing)
 [ ] 9.2  In-game HUD, always visible: score, lives, level, remaining time
 [ ] 9.3  Pause menu: Resume / Return to main menu
 [ ] 9.4  Game Over screen: final score + name entry prompt

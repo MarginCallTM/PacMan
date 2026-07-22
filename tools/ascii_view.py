@@ -9,6 +9,7 @@ Usage: uv run python tools/ascii_view.py [width height seed]
 import sys
 
 from pacman.maze_loader import Maze, NORTH, SOLID, WEST, generate_maze
+from pacman.entities.pellets import place_pellets
 
 
 def render_ascii(maze: Maze,
@@ -69,7 +70,10 @@ def main() -> None:
     except Exception as exc:  # dev tool: any failure -> short message
         print(f"ascii_view: {exc}")
         return
-    print(render_ascii(maze, player=maze.center()))
+    pellets = place_pellets(maze, 42, seed)
+    print(render_ascii(maze, pellets=pellets.pacgums,
+                       supers=pellets.super_pacgums,
+                       player=maze.center()))
 
 
 if __name__ == "__main__":
