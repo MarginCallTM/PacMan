@@ -257,8 +257,14 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 8. GAME ENGINE & LEVELS (pacman/game/)                                 owner: both (pair)
 --------------------------------------------------------------------------------
-[ ] 8.1  states.py: state enum MENU / PLAYING / PAUSED / GAME_OVER /
+[x] 8.1  states.py: state enum MENU / PLAYING / PAUSED / GAME_OVER /
          VICTORY (+ name-entry state) and transition rules
+         (code done 2026-07-22: GameState enum with 8 screens incl.
+         HIGHSCORES / INSTRUCTIONS / NAME_ENTRY shared by win & lose;
+         TRANSITIONS dict of frozensets, StateMachine.transition_to
+         raises ValueError on illegal moves; DECISION: no EXIT state,
+         quitting = engine `running` flag -> README;
+         tests/test_states.py, 6 tests, green 2026-07-22 — 82 total)
 [ ] 8.2  level.py: one level = maze + pellets + entities + countdown
          timer (level_max_time from config)
 [ ] 8.3  engine.py: main loop (events -> update -> render), fixed
