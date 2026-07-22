@@ -210,16 +210,30 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          (buffered-turn design: direction + wanted; step() is
          time-free, the engine owns the cadence; tests green +
          committed 2026-07-20)
-[~] 7.2  Ghost class with state machine: CHASE / FRIGHTENED / EATEN
+[x] 7.2  Ghost class with state machine: CHASE / FRIGHTENED / EATEN
          (DECISION: entities count time in engine TICKS, never
          seconds — engine converts via time stdlib, MLX has no clock;
          one shared `timer` field for both timed states -> README.
-         Retyped 2026-07-20, typo fixes + pytest still pending)
-[ ] 7.3  Ghost AI strategies (small, explainable-in-2-min classes):
-         [ ] strategy A: direct chase (BFS distance to player)
-         [ ] strategy B: random at intersections
-         [ ] strategy C: ambush (target ahead of player) — optional variety
-[ ] 7.4  Frightened behavior: flee from player (maximize distance)
+         tests/test_ghost.py, 7 tests, green + committed 2026-07-21)
+[~] 7.3  Ghost AI strategies (small, explainable-in-2-min classes):
+         [x] strategy A: direct chase (BFS distance to player)
+             (ghost_ai.py: ONE bfs_distances() map computed from the
+             player per tick, shared by all ghosts; ChaseStrategy
+             picks the legal neighbour minimizing it, N/E/S/W
+             tie-break; tests green + committed 2026-07-21)
+         [x] strategy B: random at intersections
+             (RandomStrategy: random among legal non-reverse moves ==
+             straight in corridors, real choice only at intersections;
+             U-turn only in dead ends; needs Ghost.direction field +
+             OPPOSITE in maze_loader; tests green 2026-07-22)
+         [ ] strategy C: ambush (target ahead of player) — OPTIONAL,
+             decide before defense whether 2 strategies + flee are
+             enough variety (document the choice in README either way)
+[x] 7.4  Frightened behavior: flee from player (maximize distance)
+         (FleeStrategy: mirror of ChaseStrategy, max instead of min,
+         same N/E/S/W tie-break; greedy/local so a ghost can trap
+         itself in a dead end — accepted trade-off -> README;
+         tests green 2026-07-22)
 [~] 7.5  Eaten: ghost returns to / respawns at its corner after a
          configurable delay (~5-10 s)
          (ghost side done: get_eaten teleports home + tick countdown,
@@ -231,10 +245,14 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [ ] 7.8  Player eats frightened ghost -> +points_per_ghost, ghost -> EATEN
 [~] 7.9  pytest: state transitions, BFS chase step, respawn timer,
          collision outcomes
-         (player covered: tests/test_player.py, 7 tests on a
-         handcrafted 3x3 "plus" maze, green 2026-07-20; ghost tests
-         next — MUST cover the emum/GhostSate retype incident:
-         lint alone cannot catch import typos, only tests can)
+         (player: tests/test_player.py, 7 tests on a handcrafted 3x3
+         "plus" maze, green 2026-07-20; ghost: tests/test_ghost.py
+         covers state transitions + respawn timer, tests/test_ghost_ai.py
+         covers BFS map + chase step + convergence, green 2026-07-21;
+         flee + random strategies covered 2026-07-22 (76 tests total) —
+         the enum import-typo incident is now test-covered, lint alone
+         cannot catch import typos (it happened AGAIN with OPPOSITE);
+         remaining: collision outcomes -> engine, task 8)
 
 --------------------------------------------------------------------------------
 8. GAME ENGINE & LEVELS (pacman/game/)                                 owner: both (pair)

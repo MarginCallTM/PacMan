@@ -16,6 +16,10 @@ from mazegenerator import MazeGenerator
 NORTH, EAST, SOUTH, WEST = 1, 2, 4, 8
 # (dx, dy) applied to (x, y) when moving toward each direction.
 DELTAS = {NORTH: (0, -1), EAST: (1, 0), SOUTH: (0, 1), WEST: (-1, 0)}
+
+# Reverse of each direction, used by ghost AI to forbid U-turns.
+OPPOSITE = {NORTH: SOUTH, SOUTH: NORTH, EAST: WEST, WEST: EAST}
+
 # A celle with all four walls: parts of the unreachable "42 pattern."
 SOLID = 15
 # mazegenerator semantics: seed <= 0 means "seed from system randomness".

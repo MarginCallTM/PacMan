@@ -3,9 +3,11 @@
 import random
 
 from pacman.entities.ghost import Ghost
-from pacman.entities.ghost_ai import ChaseStrategy, bfs_distances
+from pacman.entities.ghost_ai import (ChaseStrategy, FleeStrategy,
+                                      RandomStrategy, bfs_distances)
 from pacman.entities.player import Player, spawn_player
-from pacman.maze_loader import DELTAS, EAST, Maze, generate_maze
+from pacman.maze_loader import (DELTAS, EAST, NORTH, SOUTH, WEST,
+                                Maze, generate_maze)
 
 # Same handcrafted 3x3 "plus" maze as test_player.py: center (1,1)
 # open on all four sides, one arm per direction, solid corners.
@@ -134,3 +136,68 @@ def test_chasing_ghost_reaches_the_player() -> None:
         dx, dy = DELTAS[direction]
         ghost.x, ghost.y = ghost.x + dx, ghost.y + dy
     assert (ghost.x, ghost.y) == (player.x, player.y)
+
+
+def flee(maze: Maze, ghost_at: tuple[int, int],
+         player_at: tuple[int, int]) -> int:
+    """Run one FleeStrategy decision from a hand-placed setup."""
+    ghost = Ghost(x=ghost_at[0], y=ghost_at[1], corner=(0, 0))
+    player = Player(x=player_at[0], y=player_at[1],
+                    spawn=player_at, lives=3)
+    distances = bfs_distances(maze, player_at)
+    return FleeStrategy().choose_direction(
+        ghost, player, maze, distances, random.Random(42))
+
+
+def test_flee_steps_away_from_player() -> None:
+    """Edge ghost, player below: NORTH is the unique furthest cell."""
+    assert flee(ROOM, ghost_at=(0, 1), player_at=(1, 2)) == NORTH
+
+
+def test_flee_ties_break_in_nesw_order() -> None:
+    """Center ghost, three equidistant escapes: first wins (NORTH)."""
+    assert flee(PLUS, ghost_at=(1, 1), player_at=(0, 1)) == NORTH
+
+
+def test_cornered_ghost_flees_into_the_player() -> None:
+    """One-exit arm: greedy flee walks toward the player (trade-off)."""
+    assert flee(PLUS, ghost_at=(0, 1), player_at=(1, 1)) == EAST
+
+
+def wander(maze: Maze, at: tuple[int, int], facing: int,
+           rng: random.Random) -> int:
+    """Run one RandomStrategy decision from a hand-placed setup."""
+    ghost = Ghost(x=at[0], y=at[1], corner=(0, 0), direction=facing)
+    player = Player(x=1, y=1, spawn=(1, 1), lives=3)
+    return RandomStrategy().choose_direction(
+        ghost, player, maze, bfs_distances(maze, (1, 1)), rng)
+
+
+def test_random_never_reverses_at_intersections() -> None:
+    """100 draws at an open crossroads: no U-turn, all else covered."""
+    rng = random.Random(42)
+    picks = {wander(ROOM, (1, 1), NORTH, rng) for _ in range(100)}
+    assert picks == {NORTH, EAST, WEST}
+
+
+def test_dead_end_forces_a_u_turn() -> None:
+    """Top arm of the plus, facing NORTH: SOUTH is the only way out."""
+    assert wander(PLUS, (1, 0), NORTH, random.Random(42)) == SOUTH
+
+
+def test_first_move_allows_any_direction() -> None:
+    """direction=0 (spawn) forbids nothing: the one exit is taken."""
+    assert wander(PLUS, (0, 1), 0, random.Random(42)) == EAST
+
+
+def test_walled_in_ghost_returns_zero() -> None:
+    """A ghost on a solid cell stays put, without crashing."""
+    assert wander(PLUS, (0, 0), 0, random.Random(42)) == 0
+
+
+def test_random_is_reproducible_with_same_seed() -> None:
+    """Two runs with the same seed pick the same 20 directions."""
+    runs = [[wander(ROOM, (1, 1), NORTH, random.Random(7))
+             for _ in range(20)]
+            for _ in range(2)]
+    assert runs[0] == runs[1]

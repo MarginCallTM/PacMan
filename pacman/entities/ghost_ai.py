@@ -6,7 +6,7 @@ from collections import deque
 
 from pacman.entities.ghost import Ghost
 from pacman.entities.player import Player
-from pacman.maze_loader import DELTAS, Maze
+from pacman.maze_loader import DELTAS, OPPOSITE, Maze
 
 # A BFS distance map, as returned by bfs_distances().
 Distances = dict[tuple[int, int], int]
@@ -51,15 +51,15 @@ class Strategy(ABC):
                          rng: random.Random) -> int:
         """Return the direction to take this tick.
 
-            Args:
-                ghost: The deciding ghost (position matters).
-                player: The player (position and facing direction).
-                maze: The current level maze.
-                distacnes: BFS map from the player, shared per tick.
-                rng: Seeded generator, for the random strategies
+        Args:
+            ghost: The deciding ghost (position matters).
+            player: The player (position and facing direction).
+            maze: The current level maze.
+            distances: BFS map from the player, shared per tick.
+            rng: Seeded generator, for the random strategies.
 
-            Returns:
-                One of NORTH/EAST/SOUTH/WEST or 0 to stay put.
+        Returns:
+            One of NORTH/EAST/SOUTH/WEST or 0 to stay put.
         """
 
 
@@ -75,16 +75,15 @@ class ChaseStrategy(Strategy):
         keeps the first best). Falls back to 0 when no reachable
         neighbour exists.
 
-
         Args:
-                        ghost: The deciding ghost.
+            ghost: The deciding ghost.
             player: Unused here: the distance map already encodes it.
             maze: The current level maze.
-            distances: BFS  map from the player
+            distances: BFS map from the player, shared per tick.
             rng: Unused here: chasing is deterministic.
 
         Returns:
-                        The chosen direction, or 0 when stuck
+            The chosen direction, or 0 when stuck.
         """
         best, best_dist = 0, None
         for direction, (dx, dy) in DELTAS.items():
@@ -96,3 +95,68 @@ class ChaseStrategy(Strategy):
             if best_dist is None or dist < best_dist:
                 best, best_dist = direction, dist
         return best
+
+
+class FleeStrategy(Strategy):
+    """Frightened mode: always step onto the cell furthest away."""
+
+    def choose_direction(self, ghost: Ghost, player: Player,
+                         maze: Maze, distances: Distances,
+                         rng: random.Random) -> int:
+        """Pick the legal neighbour with the largest distance.
+
+        Exact mirror of ChaseStrategy: same loop, ``>`` instead of
+        ``<``. Greedy and local, so a fleeing ghost can trap itself
+        in a dead end - accepted trade-off, documented in README.
+
+        Args:
+            ghost: The deciding ghost.
+            player: Unused here: the distance map already encodes it.
+            maze: The current level maze.
+            distances: BFS map from the player, shared per tick.
+            rng: Unused here: fleeing is deterministic.
+
+        Returns:
+            The chosen direction, or 0 when stuck.
+        """
+        best, best_dist = 0, None
+        for direction, (dx, dy) in DELTAS.items():
+            if not maze.can_move(ghost.x, ghost.y, direction):
+                continue
+            dist = distances.get((ghost.x + dx, ghost.y + dy))
+            if dist is None:
+                continue
+            if best_dist is None or dist > best_dist:
+                best, best_dist = direction, dist
+        return best
+
+
+class RandomStrategy(Strategy):
+    """Strategy B: straight in corridors, random at intersections."""
+
+    def choose_direction(self, ghost: Ghost, player: Player,
+                         maze: Maze, distances: Distances,
+                         rng: random.Random) -> int:
+        """Pick randomly among legal moves, never reversing.
+
+        In a corridor exactly one non-reverse direction is legal, so
+        the ghost keeps going straight; a real choice only happens at
+        intersections. Reversing is allowed only in dead ends.
+
+        Args:
+            ghost: The deciding ghost (direction matters).
+            player: Unused here: this strategy ignores the player.
+            maze: The current level maze.
+            distances: Unused here: no pathfinding involved.
+            rng: Seeded generator, so tests can reproduce runs.
+
+        Returns:
+            The chosen direction, or 0 when the ghost is walled in.
+        """
+        options = [d for d in DELTAS
+                   if maze.can_move(ghost.x, ghost.y, d)
+                   and d != OPPOSITE.get(ghost.direction)]
+        if options:
+            return rng.choice(options)
+        back = OPPOSITE.get(ghost.direction, 0)
+        return back if maze.can_move(ghost.x, ghost.y, back) else 0

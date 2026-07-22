@@ -29,6 +29,7 @@ class Ghost:
     corner: tuple[int, int]
     state: GhostState = GhostState.CHASE
     timer: int = 0
+    direction: int = 0
 
     def frighten(self, duration: int) -> None:
         """Enter FRIGHTENED for ``duration`` ticks (super-pacgum).
