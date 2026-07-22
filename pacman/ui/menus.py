@@ -15,6 +15,15 @@ class MainMenu:
 
     OPTIONS = ("Start Game", "View Highscores", "Instructions", "Exit")
 
+    _BUTTON_BORDER = 0xFFFFFFFF  # white border, unselected
+    _BUTTON_BORDER_SELECTED = 0xFFFFFF00  # yellow border, selected
+    _BUTTON_FILL = 0xFF202020  # dark grey fill, unselected
+    _BUTTON_FILL_SELECTED = 0xFF404000  # dark yellow fill, selected
+    _BUTTON_BORDER_PX = 3
+    _CHAR_WIDTH_PX = 8  # rough average glyph width of MLX's default
+    # font; used to approximate horizontal centering since MLX has
+    # no text-measurement primitive
+
     def __init__(self, window: MlxWindow) -> None:
         """Bind this menu to an already-created window.
 
@@ -51,6 +60,7 @@ class MainMenu:
         if not self._dirty:
             return
         self._draw_background()
+        self._draw_buttons()
         self._window.present()
         self._draw_labels()
         self._dirty = False
@@ -66,8 +76,48 @@ class MainMenu:
             0, self._window.width - 1,
             0, self._window.height - 1, 0xFF000000)
 
+    def _button_rect(self, index: int) -> tuple[int, int, int, int]:
+        """Compute one button's (left, right, top, bottom) pixel bounds.
+
+        Args:
+            index: Position of the option in ``OPTIONS``.
+
+        Returns:
+            The button's bounding box, evenly stacked and centered.
+        """
+        button_w = self._window.width // 3
+        button_h = 60
+        gap = 20
+        total_h = (len(self.OPTIONS) * button_h
+                   + (len(self.OPTIONS) - 1) * gap)
+        start_y = self._window.height // 2 - total_h // 2
+        left = self._window.width // 2 - button_w // 2
+        top = start_y + index * (button_h + gap)
+        return left, left + button_w, top, top + button_h
+
+    def _draw_buttons(self) -> None:
+        """Draw one border+fill rectangle per option into the buffer.
+
+        Must run before :meth:`MlxWindow.present`: ``fill_rect``
+        only writes the off-screen buffer, which is not visible
+        until the next ``present`` blits it.
+        """
+        for i in range(len(self.OPTIONS)):
+            left, right, top, bottom = self._button_rect(i)
+            is_selected = i == self._selected
+            border = (self._BUTTON_BORDER_SELECTED if is_selected
+                      else self._BUTTON_BORDER)
+            fill = (self._BUTTON_FILL_SELECTED if is_selected
+                    else self._BUTTON_FILL)
+            self._window.fill_rect(left, right, top, bottom, border)
+            self._window.fill_rect(
+                left + self._BUTTON_BORDER_PX,
+                right - self._BUTTON_BORDER_PX,
+                top + self._BUTTON_BORDER_PX,
+                bottom - self._BUTTON_BORDER_PX, fill)
+
     def _draw_labels(self) -> None:
-        """Draw the option list directly onto the window.
+        """Draw each option's label centered inside its button.
 
         Unlike ``fill_rect``, MLX's ``mlx_string_put`` paints
         straight onto the visible window, not into the off-screen
@@ -75,14 +125,15 @@ class MainMenu:
         get wiped out by the buffer blit, so this must run *after*
         ``present``.
         """
-        start_y = self._window.height // 2 - len(self.OPTIONS) * 20
         for i, label in enumerate(self.OPTIONS):
+            left, right, top, bottom = self._button_rect(i)
             is_selected = i == self._selected
             color = 0xFFFFFF00 if is_selected else 0xFFFFFFFF
-            prefix = "> " if is_selected else "  "
-            self._window.draw_text(
-                self._window.width // 2 - 80,
-                start_y + i * 40, color, prefix + label)
+            text = ("> " if is_selected else "  ") + label
+            text_w = len(text) * self._CHAR_WIDTH_PX
+            x = (left + right) // 2 - text_w // 2
+            y = (top + bottom) // 2 + 5
+            self._window.draw_text(x, y, color, text)
 
 
 class InstructionsScreen:
