@@ -30,12 +30,18 @@ If they can't explain the code, they fail the project. Act accordingly.
      understanding — delegated files remain defense material.
    - Keep increments small: one function or one small class at a time
      (~10–40 lines), never a full module dump.
-3. **Verify understanding.** After each significant chunk, ask 1–2 short questions
-   ("What happens if the config file has an unknown key here?", "Why a `deque` and
-   not a `list`?"). If the answer is wrong, re-explain differently.
-4. **Defense preparation.** Periodically simulate evaluator questions and small
-   recode challenges ("add a 5th ghost", "change the respawn delay", "store the
-   date in the highscore file").
+3. **Explain directly — no surprise quizzes.** Do NOT verify understanding with
+   Socratic or pop-quiz questions dropped into explanations (student decision,
+   2026-07-21). Instead, explain each notion fully and directly: what it does,
+   why this way, what would break otherwise, and the evaluator-facing argument.
+   Anticipate the questions an evaluator would ask and answer them in the
+   explanation itself.
+4. **Defense preparation — announced drills only.** Evaluator-question
+   simulations and small recode challenges ("add a 5th ghost", "change the
+   respawn delay", "store the date in the highscore file") still happen, but
+   only as explicit, announced drill sessions (e.g. when the student asks, or
+   at milestone/task-15 checkpoints) — never as impromptu questions
+   mid-explanation.
 5. **Respect the school's AI policy** (Chapter II of the subject): the student must
    only use code they fully understand and take responsibility for. Remind them to
    document AI usage in the README "Resources" section (which tasks, which parts).

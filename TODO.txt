@@ -68,6 +68,17 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          clear window, screen size, key autorepeat ctrl, loop_exit.
          Still forbidden: draw.*, mixer/sound, rotation, alpha, and
          pygame.time (MLX has no clock -> timing via stdlib `time`).
+         SUBJECT UPDATE (2026-07-20): the subject now MANDATES MLX
+         itself — the pygame-framebuffer plan (and its README mapping
+         table, old 13.8/13.9 note) is DROPPED. We use the school MLX
+         "mlx_CLXV v2.2" (C/X11 lib + official Python ctypes wrapper),
+         tarball in project-management/reference/minimlx/. Tasks 0.9,
+         5, 8.8 and 11 updated below; data layer & game logic (2-4,
+         6-8) are graphics-free by design -> unaffected.
+[ ] 0.9  MLX switch cleanup: drop the pygame dependency from
+         pyproject/uv.lock once ui/ is ported; decide how the MLX
+         wrapper ships in the repo (school code — check what we are
+         allowed to commit; likely vendored sources + build step)
 
 --------------------------------------------------------------------------------
 1. ENTRY POINT: pac-man.py                                             owner: Sloubiat
@@ -150,7 +161,7 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          (tests/test_highscores.py, green 2026-07-17)
 
 --------------------------------------------------------------------------------
-5. RENDERER SANDBOX (pacman/ui/renderer.py)                            owner: Sloubiat
+5. RENDERER SANDBOX (pacman/ui/renderer.py) — MLX (subject update)     owner: Sloubiat
 --------------------------------------------------------------------------------
 [x] 5.1  MLX window init (pacman/ui/mlx_window.py: MlxWindow — generic,
          reusable buffer/hooks wrapper, no game knowledge), cell-size
@@ -172,41 +183,88 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 6. PELLETS & SCORING (pacman/entities/pellets.py)                      owner: A (acombier)
 --------------------------------------------------------------------------------
-[ ] 6.1  Pacgum placement in most corridors (exclude value-15 cells,
+[x] 6.1  Pacgum placement in most corridors (exclude value-15 cells,
          player start cell, corners reserved for super-pacgums)
-[ ] 6.2  Super-pacgums in the 4 corners of the maze
-[ ] 6.3  Consumption on player contact -> +points_per_pacgum /
+         (seeded RNG -> reproducible layout; 'pacgum' config key = count,
+         clamped to available cells; done 2026-07-17)
+[x] 6.2  Super-pacgums in the 4 corners of the maze
+[~] 6.3  Consumption on player contact -> +points_per_pacgum /
          +points_per_super_pacgum
-[ ] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
-[ ] 6.5  Win condition: level complete when all pacgums eaten
-[ ] 6.6  Score rule: score NEVER decreases; carries over between levels
-[ ] 6.7  pytest: placement rules, consumption, win detection
+         (pellets side done: eat() returns PelletType; the points mapping
+         happens in engine.py, task 8)
+[~] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
+         (pellets side done: eat() returns SUPER; the trigger + timer
+         happen in engine.py, task 8)
+[x] 6.5  Win condition: level complete when all pacgums eaten
+         (all_eaten(); DECISION: super-pacgums count too -> README)
+[~] 6.6  Score rule: score NEVER decreases; carries over between levels
+         (pure engine rule, task 8 — nothing to do in pellets.py)
+[x] 6.7  pytest: placement rules, consumption, win detection
+         (tests/test_pellets.py, 8 tests, green 2026-07-17)
 
 --------------------------------------------------------------------------------
 7. PLAYER & GHOSTS (pacman/entities/)                                  owner: A (acombier)
 --------------------------------------------------------------------------------
-[ ] 7.1  Player class: position, direction, lives (from config),
+[x] 7.1  Player class: position, direction, lives (from config),
          movement validation, respawn at maze center
-[ ] 7.2  Ghost class with state machine: CHASE / FRIGHTENED / EATEN
-[ ] 7.3  Ghost AI strategies (small, explainable-in-2-min classes):
-         [ ] strategy A: direct chase (BFS distance to player)
-         [ ] strategy B: random at intersections
-         [ ] strategy C: ambush (target ahead of player) — optional variety
-[ ] 7.4  Frightened behavior: flee from player (maximize distance)
-[ ] 7.5  Eaten: ghost returns to / respawns at its corner after a
+         (buffered-turn design: direction + wanted; step() is
+         time-free, the engine owns the cadence; tests green +
+         committed 2026-07-20)
+[x] 7.2  Ghost class with state machine: CHASE / FRIGHTENED / EATEN
+         (DECISION: entities count time in engine TICKS, never
+         seconds — engine converts via time stdlib, MLX has no clock;
+         one shared `timer` field for both timed states -> README.
+         tests/test_ghost.py, 7 tests, green + committed 2026-07-21)
+[~] 7.3  Ghost AI strategies (small, explainable-in-2-min classes):
+         [x] strategy A: direct chase (BFS distance to player)
+             (ghost_ai.py: ONE bfs_distances() map computed from the
+             player per tick, shared by all ghosts; ChaseStrategy
+             picks the legal neighbour minimizing it, N/E/S/W
+             tie-break; tests green + committed 2026-07-21)
+         [x] strategy B: random at intersections
+             (RandomStrategy: random among legal non-reverse moves ==
+             straight in corridors, real choice only at intersections;
+             U-turn only in dead ends; needs Ghost.direction field +
+             OPPOSITE in maze_loader; tests green 2026-07-22)
+         [ ] strategy C: ambush (target ahead of player) — OPTIONAL,
+             decide before defense whether 2 strategies + flee are
+             enough variety (document the choice in README either way)
+[x] 7.4  Frightened behavior: flee from player (maximize distance)
+         (FleeStrategy: mirror of ChaseStrategy, max instead of min,
+         same N/E/S/W tie-break; greedy/local so a ghost can trap
+         itself in a dead end — accepted trade-off -> README;
+         tests green 2026-07-22)
+[~] 7.5  Eaten: ghost returns to / respawns at its corner after a
          configurable delay (~5-10 s)
+         (ghost side done: get_eaten teleports home + tick countdown,
+         DECISION: no arcade "eyes travel home" animation -> README;
+         seconds->ticks conversion happens in engine, task 8)
 [ ] 7.6  4 ghosts spawn one per corner; player spawns middle
 [ ] 7.7  Collisions: ghost touches player (not frightened) -> lose a life,
          respawn player center; game over at 0 lives
 [ ] 7.8  Player eats frightened ghost -> +points_per_ghost, ghost -> EATEN
-[ ] 7.9  pytest: state transitions, BFS chase step, respawn timer,
+[~] 7.9  pytest: state transitions, BFS chase step, respawn timer,
          collision outcomes
+         (player: tests/test_player.py, 7 tests on a handcrafted 3x3
+         "plus" maze, green 2026-07-20; ghost: tests/test_ghost.py
+         covers state transitions + respawn timer, tests/test_ghost_ai.py
+         covers BFS map + chase step + convergence, green 2026-07-21;
+         flee + random strategies covered 2026-07-22 (76 tests total) —
+         the enum import-typo incident is now test-covered, lint alone
+         cannot catch import typos (it happened AGAIN with OPPOSITE);
+         remaining: collision outcomes -> engine, task 8)
 
 --------------------------------------------------------------------------------
 8. GAME ENGINE & LEVELS (pacman/game/)                                 owner: both (pair)
 --------------------------------------------------------------------------------
-[ ] 8.1  states.py: state enum MENU / PLAYING / PAUSED / GAME_OVER /
+[x] 8.1  states.py: state enum MENU / PLAYING / PAUSED / GAME_OVER /
          VICTORY (+ name-entry state) and transition rules
+         (code done 2026-07-22: GameState enum with 8 screens incl.
+         HIGHSCORES / INSTRUCTIONS / NAME_ENTRY shared by win & lose;
+         TRANSITIONS dict of frozensets, StateMachine.transition_to
+         raises ValueError on illegal moves; DECISION: no EXIT state,
+         quitting = engine `running` flag -> README;
+         tests/test_states.py, 6 tests, green 2026-07-22 — 82 total)
 [ ] 8.2  level.py: one level = maze + pellets + entities + countdown
          timer (level_max_time from config)
 [ ] 8.3  engine.py: main loop (events -> update -> render), fixed
@@ -218,8 +276,9 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [ ] 8.6  Pause / resume during gameplay
 [ ] 8.7  Game end (win or lose): show final score -> name prompt ->
          save highscore -> back to main menu
-[ ] 8.8  Keep engine + entities pygame-free (unit-testable); only ui/
-         imports pygame
+[ ] 8.8  Keep engine + entities graphics-free (unit-testable); only
+         ui/ touches the MLX wrapper; timing via stdlib `time`
+         (MLX has no clock)
 
 --------------------------------------------------------------------------------
 9. UI SCREENS & HUD (pacman/ui/menus.py)                               owner: Sloubiat
@@ -247,6 +306,10 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 11. PACKAGING & DEPLOYMENT (Itch.io)                                   owner: A (acombier)
 --------------------------------------------------------------------------------
+[ ] 11.0  NOTE (MLX update): MLX is a native C/X11 lib -> the package
+          must bundle its sources + a build step (or a prebuilt .so),
+          target is Linux/X11; document the requirements (X11 dev
+          libs) on the Itch.io page and in the README
 [ ] 11.1  Choose + write the packaging script/spec (e.g., PyInstaller or
           zipped source + install script) — kept at repo root
 [ ] 11.2  Include minimal in-package instructions (controls, options,
