@@ -1,1 +1,1 @@
-"""User interface: pygame rendering and menus."""
+"""User interface: MLX rendering and menus."""

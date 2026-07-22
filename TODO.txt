@@ -163,19 +163,19 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 5. RENDERER SANDBOX (pacman/ui/renderer.py) — MLX (subject update)     owner: Sloubiat
 --------------------------------------------------------------------------------
-[ ] 5.0  MLX toolchain bootstrap: extract mlx_CLXV-2.2.tgz, install
-         X11 dev deps, build the C lib, probe the Python ctypes
-         wrapper's REAL API (same method as mazegenerator: trust the
-         code, not the docs); write down window/image/text/hook calls
-[ ] 5.1  MLX window init (mlx_init + new_window), cell-size
-         computation from maze dimensions
-[ ] 5.2  Draw maze walls from the bitmask into an MLX image buffer
-         (pixel writes, then put_image_to_window once per frame);
-         value-15 cells drawn as filled blue blocks (the "42" pattern)
+[x] 5.1  MLX window init (pacman/ui/mlx_window.py: MlxWindow — generic,
+         reusable buffer/hooks wrapper, no game knowledge), cell-size
+         computation from maze dimensions (MazeRenderer.load)
+[~] 5.2  Draw maze walls from the bitmask (line per wall bit) — done in
+         MazeRenderer._draw. value-15 cells currently filled with the
+         same wall color as regular walls, NOT a distinct blue block
+         yet (the "42" pattern isn't visually called out — polish left)
 [ ] 5.3  Draw the player (position + facing direction)
-[ ] 5.4  Keyboard input via MLX key hooks: arrows AND WASD,
-         4-direction movement, corridor-only (uses maze_loader.can_move)
-[ ] 5.5  Grid-to-pixel conversion helpers (single source of truth)
+[ ] 5.4  Keyboard input: arrows AND WASD, 4-direction movement,
+         corridor-only (uses maze_loader.can_move)
+[~] 5.5  Grid-to-pixel conversion: cell_w/cell_h computed once in
+         MazeRenderer.load, reused by _draw/render_if_dirty; not yet
+         extracted as a standalone helper other modules could share
 [ ] 5.6  Playable sandbox milestone: walk a maze on screen
 [ ] 5.7  Draw pellets, super-pellets, ghosts (per-state colors:
          chase / frightened / eaten), HUD (see 9.2)
