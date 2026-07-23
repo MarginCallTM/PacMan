@@ -2,15 +2,12 @@
 
 from typing import Any
 
+from pacman.ui.keys import KEY_DOWN, KEY_ENTER, KEY_ESCAPE, KEY_UP
 from pacman.ui.mlx_window import MlxWindow
-
-KEY_UP = 65362
-KEY_DOWN = 65364
-KEY_ENTER = 65293
-KEY_ESCAPE = 65307
+from pacman.ui.screen import Screen
 
 
-class MainMenu:
+class MainMenu(Screen):
     """Main menu: Start Game / View Highscores / Instructions / Exit."""
 
     OPTIONS = ("Start Game", "View Highscores", "Instructions", "Exit")
@@ -30,14 +27,10 @@ class MainMenu:
         Args:
             window: The shared MLX window to draw into.
         """
+        super().__init__()
         self._window = window
         self._selected = 0
-        self._dirty = True
         self.chosen: str | None = None
-
-    def refresh(self) -> None:
-        """Force a redraw next tick (call this when re-entering)."""
-        self._dirty = True
 
     def handle_key(self, *params: Any) -> None:
         """React to a key press: move the selection or confirm it.
@@ -48,33 +41,19 @@ class MainMenu:
         keycode = params[0]
         if keycode == KEY_UP:
             self._selected = (self._selected - 1) % len(self.OPTIONS)
-            self._dirty = True
+            self.refresh()
         elif keycode == KEY_DOWN:
             self._selected = (self._selected + 1) % len(self.OPTIONS)
-            self._dirty = True
+            self.refresh()
         elif keycode == KEY_ENTER:
             self.chosen = self.OPTIONS[self._selected]
 
-    def render_if_dirty(self, *_: Any) -> None:
-        """MLX loop-hook: redraw only when the selection changed."""
-        if not self._dirty:
-            return
-        self._draw_background()
+    def _render(self) -> None:
+        """Redraw the background and buttons, then the labels."""
+        self._window.clear(0xFF000000)
         self._draw_buttons()
         self._window.present()
         self._draw_labels()
-        self._dirty = False
-
-    def _draw_background(self) -> None:
-        """Fill the off-screen buffer with a solid background.
-
-        ``fill_rect`` writes into the image buffer, which only
-        reaches the screen once :meth:`MlxWindow.present` blits it,
-        so this must run *before* ``present``.
-        """
-        self._window.fill_rect(
-            0, self._window.width - 1,
-            0, self._window.height - 1, 0xFF000000)
 
     def _button_rect(self, index: int) -> tuple[int, int, int, int]:
         """Compute one button's (left, right, top, bottom) pixel bounds.
@@ -136,7 +115,7 @@ class MainMenu:
             self._window.draw_text(x, y, color, text)
 
 
-class InstructionsScreen:
+class InstructionsScreen(Screen):
     """Static help screen: controls, then back to the main menu."""
 
     LINES = (
@@ -153,13 +132,9 @@ class InstructionsScreen:
         Args:
             window: The shared MLX window to draw into.
         """
+        super().__init__()
         self._window = window
-        self._dirty = True
         self.done = False
-
-    def refresh(self) -> None:
-        """Force a redraw next tick (call this when re-entering)."""
-        self._dirty = True
 
     def handle_key(self, *params: Any) -> None:
         """Any of Enter/Escape flags this screen as done.
@@ -170,17 +145,12 @@ class InstructionsScreen:
         if params[0] in (KEY_ENTER, KEY_ESCAPE):
             self.done = True
 
-    def render_if_dirty(self, *_: Any) -> None:
-        """MLX loop-hook: redraw only once, until refreshed again."""
-        if not self._dirty:
-            return
-        self._window.fill_rect(
-            0, self._window.width - 1,
-            0, self._window.height - 1, 0xFF000000)
+    def _render(self) -> None:
+        """Draw the background then each instruction line."""
+        self._window.clear(0xFF000000)
         self._window.present()
         start_y = self._window.height // 2 - len(self.LINES) * 15
         for i, line in enumerate(self.LINES):
             self._window.draw_text(
                 self._window.width // 2 - 150,
                 start_y + i * 30, 0xFFFFFFFF, line)
-        self._dirty = False

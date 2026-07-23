@@ -1,5 +1,6 @@
 from typing import Any
 
+from pacman.entities.pellets import place_pellets
 from pacman.maze_loader import generate_maze
 from pacman.ui.menus import InstructionsScreen, MainMenu
 from pacman.ui.mlx_window import MlxWindow
@@ -16,6 +17,8 @@ def main() -> None:
     instructions = InstructionsScreen(window)
     maze_renderer = MazeRenderer(window)
     maze_renderer.load(maze)
+    pellets = place_pellets(maze, count=42, seed=12)
+    maze_renderer.load_pellets(pellets)
 
     def show_menu(*_: Any) -> None:
         menu.render_if_dirty()
