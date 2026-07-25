@@ -9,6 +9,7 @@ belongs in a separate renderer that *holds* an ``MlxWindow``, not in
 this file.
 """
 
+import signal
 from typing import Any, Callable
 
 import numpy as np
@@ -153,7 +154,18 @@ class MlxWindow:
         self._mx.mlx_loop_hook(self._mlx_ptr, callback, None)
 
     def start_loop(self) -> None:
-        """Block and run the MLX event loop until :meth:`destroy`."""
+        """Block and run the MLX event loop until :meth:`destroy`.
+
+        While this call is blocked inside the C event loop, Python only
+        runs again through our own ctypes hooks. If SIGINT (Ctrl+C)
+        raised the default ``KeyboardInterrupt`` from inside one of
+        those hooks, ctypes would swallow it at the C/Python boundary
+        instead of letting it reach our caller. So we take SIGINT over
+        for the duration of the loop and route it straight to
+        :meth:`destroy` - the same clean shutdown already used for the
+        window's close icon - instead of trying (and failing) to raise.
+        """
+        signal.signal(signal.SIGINT, self.destroy)
         self._mx.mlx_loop(self._mlx_ptr)
 
     def destroy(self, *_: Any) -> None:
