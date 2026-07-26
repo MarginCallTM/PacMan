@@ -2,9 +2,30 @@
 
 from typing import Any
 
-from pacman.ui.keys import KEY_DOWN, KEY_ENTER, KEY_ESCAPE, KEY_UP
+from pacman.highscores import MAX_NAME_LENGTH, is_valid_name
+from pacman.ui.keys import (KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESCAPE,
+                            KEY_UP)
 from pacman.ui.mlx_window import MlxWindow
 from pacman.ui.screen import Screen
+
+_TEXT_CHAR_WIDTH_PX = 8  # MLX has no text-measurement primitive, so
+# every screen below approximates horizontal centering with this
+# fixed average glyph width instead
+
+
+def _draw_centered(window: MlxWindow, center_x: int, y: int, color: int,
+                   text: str) -> None:
+    """Draw one line of text horizontally centered on ``center_x``.
+
+    Args:
+        window: The shared MLX window to draw into.
+        center_x: Pixel column the text should be centered on.
+        y: Baseline row in pixels.
+        color: 0xAARRGGBB pixel value.
+        text: String to draw.
+    """
+    x = center_x - (len(text) * _TEXT_CHAR_WIDTH_PX) // 2
+    window.draw_text(x, y, color, text)
 
 
 class MainMenu(Screen):
@@ -154,3 +175,135 @@ class InstructionsScreen(Screen):
             self._window.draw_text(
                 self._window.width // 2 - 150,
                 start_y + i * 30, 0xFFFFFFFF, line)
+
+
+class NameEntryScreen(Screen):
+    """Pseudo input screen: type a name, confirm it with Enter.
+
+    Every keystroke is validated against the same rule the
+    highscore table enforces (``highscores.is_valid_name``), so a
+    name typed here is guaranteed to be acceptable later -- there is
+    only one place, ``highscores.py``, that defines what a valid
+    name is.
+    """
+
+    def __init__(self, window: MlxWindow,
+                 prompt: str = "Enter your name:") -> None:
+        """Bind this screen to an already-created window.
+
+        Args:
+            window: The shared MLX window to draw into.
+            prompt: Line of instructions shown above the input box.
+        """
+        super().__init__()
+        self._window = window
+        self._prompt = prompt
+        self._name = ""
+        self.confirmed: str | None = None
+
+    def handle_key(self, *params: Any) -> None:
+        """React to a key press: type, erase, or confirm the name.
+
+        Args:
+            params: MLX hook payload; ``params[0]`` is the keycode.
+        """
+        keycode = params[0]
+        if keycode == KEY_ENTER:
+            if is_valid_name(self._name):
+                self.confirmed = self._name
+            return
+        if keycode == KEY_BACKSPACE:
+            if self._name:
+                self._name = self._name[:-1]
+                self.refresh()
+            return
+        if 32 <= keycode <= 126:
+            char = chr(keycode)
+            if ((char.isalnum() or char == " ")
+                    and len(self._name) < MAX_NAME_LENGTH):
+                self._name += char
+                self.refresh()
+
+    def _render(self) -> None:
+        """Draw the prompt, then the name typed so far with a cursor."""
+        self._window.clear(0xFF000000)
+        self._window.present()
+        center_x = self._window.width // 2
+        center_y = self._window.height // 2
+        _draw_centered(self._window, center_x, center_y - 30,
+                       0xFFFFFFFF, self._prompt)
+        _draw_centered(self._window, center_x, center_y + 20,
+                       0xFFFFFF00, self._name + "_")
+
+
+class _EndScreen(Screen):
+    """Shared behavior for the Game Over and Victory screens.
+
+    Both just display the final score and wait for Enter/Escape --
+    what happens next (showing :class:`NameEntryScreen`, going back
+    to the main menu...) is the caller's job, not this screen's. This
+    mirrors ``InstructionsScreen``'s ``done`` flag: a screen only
+    reports "the player is finished looking at me", never how to
+    transition away.
+    """
+
+    TITLE = ""
+    MESSAGE = ""
+
+    def __init__(self, window: MlxWindow) -> None:
+        """Bind this screen to an already-created window.
+
+        Args:
+            window: The shared MLX window to draw into.
+        """
+        super().__init__()
+        self._window = window
+        self._score = 0
+        self.done = False
+
+    def set_score(self, score: int) -> None:
+        """Record the final score to show and mark the view dirty.
+
+        Args:
+            score: The player's final score for this run.
+        """
+        self._score = score
+        self.refresh()
+
+    def handle_key(self, *params: Any) -> None:
+        """Any of Enter/Escape flags this screen as done.
+
+        Args:
+            params: MLX hook payload; ``params[0]`` is the keycode.
+        """
+        if params[0] in (KEY_ENTER, KEY_ESCAPE):
+            self.done = True
+
+    def _render(self) -> None:
+        """Draw the title, the optional message, and the final score."""
+        self._window.clear(0xFF000000)
+        self._window.present()
+        center_x = self._window.width // 2
+        center_y = self._window.height // 2
+        _draw_centered(self._window, center_x, center_y - 60,
+                       0xFFFFFFFF, self.TITLE)
+        if self.MESSAGE:
+            _draw_centered(self._window, center_x, center_y - 20,
+                           0xFFFFFF00, self.MESSAGE)
+        _draw_centered(self._window, center_x, center_y + 20,
+                       0xFFFFFFFF, f"Final score: {self._score}")
+        _draw_centered(self._window, center_x, center_y + 60,
+                       0xFFFFFFFF, "Press Enter to continue")
+
+
+class GameOverScreen(_EndScreen):
+    """Shown when the player loses their last life (subject VI.8)."""
+
+    TITLE = "Game Over"
+
+
+class VictoryScreen(_EndScreen):
+    """Shown when the player clears every level (subject VI.8)."""
+
+    TITLE = "Victory!"
+    MESSAGE = "Congratulations, you cleared every level!"
