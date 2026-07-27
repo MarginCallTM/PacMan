@@ -200,17 +200,19 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          (seeded RNG -> reproducible layout; 'pacgum' config key = count,
          clamped to available cells; done 2026-07-17)
 [x] 6.2  Super-pacgums in the 4 corners of the maze
-[~] 6.3  Consumption on player contact -> +points_per_pacgum /
+[x] 6.3  Consumption on player contact -> +points_per_pacgum /
          +points_per_super_pacgum
-         (pellets side done: eat() returns PelletType; the points mapping
-         happens in engine.py, task 8)
+         (DONE 2026-07-27: engine inc 2 _eat_pellet maps PelletType ->
+         config points; tested in tests/test_engine.py)
 [~] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
          (pellets side done: eat() returns SUPER; the trigger + timer
          happen in engine.py, task 8)
 [x] 6.5  Win condition: level complete when all pacgums eaten
          (all_eaten(); DECISION: super-pacgums count too -> README)
-[~] 6.6  Score rule: score NEVER decreases; carries over between levels
-         (pure engine rule, task 8 — nothing to do in pellets.py)
+[x] 6.6  Score rule: score NEVER decreases; carries over between levels
+         (DONE 2026-07-27: only `+=` in the engine, reset only in
+         start_game(); _advance_level never touches score; carry-over
+         tested in tests/test_engine.py)
 [x] 6.7  pytest: placement rules, consumption, win detection
          (tests/test_pellets.py, 8 tests, green 2026-07-17)
 
@@ -292,12 +294,24 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          TICKS_PER_SECOND=8, monotonic-clock accumulator in update(),
          MAX_TICKS_PER_UPDATE=4 clamp so an OS freeze pauses instead
          of fast-forwarding, accumulator drained outside PLAYING so
-         pause never builds catch-up ticks; no engine tests yet (tick
-         cadence gets tested with inc 2). Next inc 2: player tick +
-         pellets + score; inc 3: ghosts + collisions; inc 4: level
-         progression + pause + game end)
-[ ] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
+         pause never builds catch-up ticks.
+         Increment 2 IN PLACE 2026-07-27, DELEGATED (acombier re-read
+         pending): turn() buffers keys only while PLAYING; _tick =
+         timer -> player.step -> _eat_pellet -> completion check;
+         helpers take `level` as param (mypy Optional narrowing);
+         _eat_pellet maps PelletType -> config points (frightened
+         trigger deferred to inc 3); _advance_level = next level with
+         lives carry-over, or VICTORY after the last one.
+         tests/test_engine.py: 10 tests with a FakeClock monkeypatched
+         over time.monotonic (cadence, clamp, pause drain, scoring,
+         carry-over, victory) — 103 total, lint green.
+         Next inc 3: ghosts + collisions; inc 4: pause key + timer
+         expiry + game end -> name entry chain)
+[~] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
          random; score and lives carry over
+         (engine side done 2026-07-27: _advance_level + build_level
+         seed policy + carry-over, tested; stays [~] until 8.5 timer
+         decision and a full multi-level playthrough exist)
 [ ] 8.5  Timer expiry behavior: DECIDE it (e.g., lose a life / restart
          level) and DOCUMENT it in README
 [ ] 8.6  Pause / resume during gameplay
@@ -327,7 +341,7 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 
 --------------------------------------------------------------------------------
 10. CHEAT MODE (in engine, keys documented)                            owner: both (pair)
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 [ ] 10.1  Invincibility toggle (no life lost on ghost contact)
 [ ] 10.2  Level skip (instantly win current level)
 [ ] 10.3  Ghost freeze (ghosts stop moving)

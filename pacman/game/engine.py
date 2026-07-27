@@ -3,6 +3,7 @@
 import time
 
 from pacman.config import GameConfig
+from pacman.entities.pellets import PelletType
 from pacman.game.level import Level, build_level
 from pacman.game.states import GameState, StateMachine
 
@@ -91,8 +92,50 @@ class Engine:
         for _ in range(ticks):
             self._tick()
 
+    def turn(self, direction: int) -> None:
+        """Buffer a keyboard direction for the player.
+
+        Called by the UI on key presses; ignored outside gameplay.
+
+        Args:
+            direction: One of NORTH, EAST, SOUTH, WEST.
+        """
+        if self.machine.state is GameState.PLAYING and self.level:
+            self.level.player.turn(direction)
+
     def _tick(self) -> None:
-        """Run one fixed simulation step (grows in later increments)."""
+        """Run one fixed simulation step."""
         if self.level is None:
             return
         self.level.tick()
+        self.level.player.step(self.level.maze)
+        self._eat_pellet(self.level)
+        if self.level.complete():
+            self._advance_level(self.level)
+
+    def _eat_pellet(self, level: Level) -> None:
+        """Consume the pellet under the player and score it.
+
+        Args:
+            level: The current level, already nil-checked by the caller.
+        """
+        eaten = level.pellets.eat(level.player.x, level.player.y)
+        if eaten is PelletType.PACGUM:
+            self.score += self.config.points_per_pacgum
+        elif eaten is PelletType.SUPER:
+            self.score += self.config.points_per_super_pacgum
+            # Frightened-mode trigger lands with the ghosts (inc 3).
+
+    def _advance_level(self, level: Level) -> None:
+        """Enter the next level, or VICTORY after the last one.
+
+        The score is deliberately untouched (subject: carries over);
+        lives are read from the outgoing player to carry over too.
+
+        Args:
+            level: The level that was just completed.
+        """
+        if level.number >= len(self.config.levels):
+            self.machine.transition_to(GameState.VICTORY)
+            return
+        self._load_level(level.number + 1, level.player.lives)
