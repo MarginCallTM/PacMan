@@ -287,12 +287,13 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          green 2026-07-22 — 93 total)
 [~] 8.3  engine.py: main loop (events -> update -> render), fixed
          timestep / clock
-         (increment 1 designed 2026-07-22, RETYPE PENDING — engine.py
-         is still the bare skeleton. Plan: to_ticks() seconds->ticks,
+         (increment 1 IN PLACE 2026-07-23, DELEGATED file — defense
+         material, acombier must re-read: to_ticks() seconds->ticks,
          TICKS_PER_SECOND=8, monotonic-clock accumulator in update(),
          MAX_TICKS_PER_UPDATE=4 clamp so an OS freeze pauses instead
          of fast-forwarding, accumulator drained outside PLAYING so
-         pause never builds catch-up ticks. Then inc 2: player tick +
+         pause never builds catch-up ticks; no engine tests yet (tick
+         cadence gets tested with inc 2). Next inc 2: player tick +
          pellets + score; inc 3: ghosts + collisions; inc 4: level
          progression + pause + game end)
 [ ] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
