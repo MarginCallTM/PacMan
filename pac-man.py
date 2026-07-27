@@ -6,8 +6,9 @@ from pacman.entities.pellets import place_pellets
 from pacman.highscores import load_highscores
 from pacman.maze_loader import generate_maze
 from pacman.ui.keys import KEY_G, KEY_V
-from pacman.ui.menus import (GameOverScreen, InstructionsScreen, MainMenu,
-                             NameEntryScreen, VictoryScreen)
+from pacman.ui.menus import (GameOverScreen, HighscoresScreen,
+                             InstructionsScreen, MainMenu, NameEntryScreen,
+                             VictoryScreen)
 from pacman.ui.mlx_window import MlxWindow
 from pacman.ui.renderer import MazeRenderer
 
@@ -36,8 +37,8 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
 
     Args:
         config: Validated game settings.
-        scores: Loaded top-10 highscores (not yet consumed here —
-            reserved for the Highscores screen, task 9).
+        scores: Loaded top-10 highscores, shown by the Highscores
+            screen (best first, as returned by ``load_highscores``).
     """
     width, height = config.levels[0]
     maze = generate_maze(width, height, config.seed)
@@ -46,6 +47,8 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
 
     menu = MainMenu(window)
     instructions = InstructionsScreen(window)
+    highscores_screen = HighscoresScreen(window)
+    highscores_screen.load(scores)
     name_entry = NameEntryScreen(window)
     game_over = GameOverScreen(window)
     victory = VictoryScreen(window)
@@ -66,15 +69,26 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
             instructions.refresh()
             window.hook_key(instructions.handle_key)
             window.hook_loop(show_instructions)
+        elif menu.chosen == "View Highscores":
+            menu.chosen = None
+            highscores_screen.refresh()
+            window.hook_key(highscores_screen.handle_key)
+            window.hook_loop(show_highscores)
         elif menu.chosen == "Exit":
             window.destroy()
-        elif menu.chosen is not None:
-            menu.chosen = None  # Highscores: not built yet
 
     def show_instructions(*_: Any) -> None:
         instructions.render_if_dirty()
         if instructions.done:
             instructions.done = False
+            menu.refresh()
+            window.hook_key(menu.handle_key)
+            window.hook_loop(show_menu)
+
+    def show_highscores(*_: Any) -> None:
+        highscores_screen.render_if_dirty()
+        if highscores_screen.done:
+            highscores_screen.done = False
             menu.refresh()
             window.hook_key(menu.handle_key)
             window.hook_loop(show_menu)

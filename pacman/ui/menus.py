@@ -177,6 +177,74 @@ class InstructionsScreen(Screen):
                 start_y + i * 30, 0xFFFFFFFF, line)
 
 
+class HighscoresScreen(Screen):
+    """Read-only top-10 board: rank, name, score, then back to the menu.
+
+    Scores are injected through :meth:`load` rather than the
+    constructor, mirroring ``MazeRenderer.load``/``_EndScreen.set_score``:
+    the screen is built once when the app starts, but its content can
+    be refreshed later (e.g. right after a new result is saved to
+    ``highscores.json`` at game end).
+    """
+
+    TITLE = "Highscores"
+    _EMPTY_MESSAGE = "No scores yet -- be the first!"
+    _LINE_HEIGHT = 30
+
+    def __init__(self, window: MlxWindow) -> None:
+        """Bind this screen to an already-created window.
+
+        Args:
+            window: The shared MLX window to draw into.
+        """
+        super().__init__()
+        self._window = window
+        self._scores: list[tuple[str, int]] = []
+        self.done = False
+
+    def load(self, scores: list[tuple[str, int]]) -> None:
+        """Record the scores to display and mark the view dirty.
+
+        Args:
+            scores: Up to 10 (name, score) pairs, best first --
+                exactly what ``highscores.load_highscores`` returns.
+        """
+        self._scores = scores
+        self.refresh()
+
+    def handle_key(self, *params: Any) -> None:
+        """Any of Enter/Escape flags this screen as done.
+
+        Args:
+            params: MLX hook payload; ``params[0]`` is the keycode.
+        """
+        if params[0] in (KEY_ENTER, KEY_ESCAPE):
+            self.done = True
+
+    def _render(self) -> None:
+        """Draw the title, then one ranked line per score (or a
+        placeholder when the board is empty)."""
+        self._window.clear(0xFF000000)
+        self._window.present()
+        center_x = self._window.width // 2
+        rows = max(len(self._scores), 1)
+        top = self._window.height // 2 - (rows + 2) * self._LINE_HEIGHT // 2
+        _draw_centered(self._window, center_x, top, 0xFFFFFF00, self.TITLE)
+        if not self._scores:
+            _draw_centered(self._window, center_x,
+                           top + self._LINE_HEIGHT * 2,
+                           0xFFFFFFFF, self._EMPTY_MESSAGE)
+        else:
+            for rank, (name, score) in enumerate(self._scores, start=1):
+                line = f"{rank:>2}. {name:<10} {score}"
+                _draw_centered(self._window, center_x,
+                               top + (rank + 1) * self._LINE_HEIGHT,
+                               0xFFFFFFFF, line)
+        _draw_centered(self._window, center_x,
+                       top + (rows + 2) * self._LINE_HEIGHT,
+                       0xFFFFFFFF, "Press Enter to go back")
+
+
 class NameEntryScreen(Screen):
     """Pseudo input screen: type a name, confirm it with Enter.
 
