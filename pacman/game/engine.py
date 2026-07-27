@@ -1,11 +1,15 @@
 """Game engine: fixed-timestep simulation, scoring, collisions."""
 
+import random
 import time
 
 from pacman.config import GameConfig
+from pacman.entities.ghost import GhostState
+from pacman.entities.ghost_ai import FleeStrategy, bfs_distances
 from pacman.entities.pellets import PelletType
 from pacman.game.level import Level, build_level
 from pacman.game.states import GameState, StateMachine
+from pacman.maze_loader import DELTAS
 
 # Simulation cadence: entities move at most one cell per tick.
 TICKS_PER_SECOND = 8
@@ -50,6 +54,8 @@ class Engine:
         self.running = True
         self._last_time = time.monotonic()
         self._accumulator = 0.0
+        self._rng = random.Random(config.seed)
+        self._flee = FleeStrategy()
 
     def start_game(self) -> None:
         """Reset the score and enter level 1 (MENU -> PLAYING)."""
@@ -104,14 +110,26 @@ class Engine:
             self.level.player.turn(direction)
 
     def _tick(self) -> None:
-        """Run one fixed simulation step."""
-        if self.level is None:
+        """Run one fixed simulation step.
+
+        Collisions are checked twice - after the player moves and
+        after the ghosts move - so neither side can walk through the
+        other within one tick. A lost life ends the tick early
+        (round reset); so does leaving PLAYING (game over).
+        """
+        if self.level is None or self.machine.state is not GameState.PLAYING:
             return
-        self.level.tick()
-        self.level.player.step(self.level.maze)
-        self._eat_pellet(self.level)
-        if self.level.complete():
-            self._advance_level(self.level)
+        level = self.level
+        level.tick()
+        level.player.step(level.maze)
+        self._eat_pellet(level)
+        if self._handle_collisions(level):
+            return
+        self._move_ghosts(level)
+        if self._handle_collisions(level):
+            return
+        if level.complete():
+            self._advance_level(level)
 
     def _eat_pellet(self, level: Level) -> None:
         """Consume the pellet under the player and score it.
@@ -124,7 +142,76 @@ class Engine:
             self.score += self.config.points_per_pacgum
         elif eaten is PelletType.SUPER:
             self.score += self.config.points_per_super_pacgum
-            # Frightened-mode trigger lands with the ghosts (inc 3).
+            for ghost in level.ghosts:
+                ghost.frighten(to_ticks(FRIGHTENED_SECONDS))
+
+    def _move_ghosts(self, level: Level) -> None:
+        """Advance ghost timers, then step every active ghost.
+
+        One BFS distance map from the player is computed per tick and
+        shared by all ghosts. FRIGHTENED ghosts flee (engine-owned
+        FleeStrategy); CHASE ghosts follow their own personality;
+        EATEN ghosts wait at home and do not move.
+
+        Args:
+            level: The current level, already nil-checked by the caller.
+        """
+        distances = bfs_distances(
+            level.maze, (level.player.x, level.player.y))
+        for ghost, personality in zip(level.ghosts, level.strategies):
+            ghost.tick()
+            if ghost.state is GhostState.EATEN:
+                continue
+            strategy = (self._flee
+                        if ghost.state is GhostState.FRIGHTENED
+                        else personality)
+            direction = strategy.choose_direction(
+                ghost, level.player, level.maze, distances, self._rng)
+            if direction:
+                dx, dy = DELTAS[direction]
+                ghost.x, ghost.y = ghost.x + dx, ghost.y + dy
+                ghost.direction = direction
+
+    def _handle_collisions(self, level: Level) -> bool:
+        """Resolve every ghost sharing the player's cell.
+
+        FRIGHTENED ghost -> eaten: points_per_ghost, sent home for
+        RESPAWN_SECONDS. CHASE ghost -> the player loses a life.
+        EATEN ghosts are out of play and harmless.
+
+        Args:
+            level: The current level, already nil-checked by the caller.
+
+        Returns:
+            True when the player lost a life (the tick must stop:
+            the round has been reset).
+        """
+        for ghost in level.ghosts:
+            if (ghost.x, ghost.y) != (level.player.x, level.player.y):
+                continue
+            if ghost.state is GhostState.FRIGHTENED:
+                self.score += self.config.points_per_ghost
+                ghost.get_eaten(to_ticks(RESPAWN_SECONDS))
+            elif ghost.state is GhostState.CHASE:
+                self._lose_life(level)
+                return True
+        return False
+
+    def _lose_life(self, level: Level) -> None:
+        """Take one life and reset the round, or end the game.
+
+        The player respawns at the center, every ghost goes back to
+        its corner (send_home); at zero lives the state machine moves
+        to GAME_OVER.
+
+        Args:
+            level: The current level, already nil-checked by the caller.
+        """
+        level.player.lose_life()
+        for ghost in level.ghosts:
+            ghost.send_home()
+        if level.player.is_dead():
+            self.machine.transition_to(GameState.GAME_OVER)
 
     def _advance_level(self, level: Level) -> None:
         """Enter the next level, or VICTORY after the last one.

@@ -53,6 +53,17 @@ class Ghost:
         self.state = GhostState.EATEN
         self.timer = delay
 
+    def send_home(self) -> None:
+        """Teleport home standing still, back to CHASE (round reset).
+
+        Called by the engine when the player loses a life, so every
+        ghost restarts the round from its corner.
+        """
+        self.x, self.y = self.corner
+        self.state = GhostState.CHASE
+        self.timer = 0
+        self.direction = 0
+
     def tick(self) -> None:
         """Count one engine tick; timed states expire back to CHASE."""
         if self.state is GhostState.CHASE:

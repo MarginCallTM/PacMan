@@ -204,9 +204,9 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          +points_per_super_pacgum
          (DONE 2026-07-27: engine inc 2 _eat_pellet maps PelletType ->
          config points; tested in tests/test_engine.py)
-[~] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
-         (pellets side done: eat() returns SUPER; the trigger + timer
-         happen in engine.py, task 8)
+[x] 6.4  Super-pacgum triggers frightened mode on all ghosts (timer)
+         (DONE 2026-07-27: engine inc 3 _eat_pellet SUPER branch calls
+         ghost.frighten(to_ticks(FRIGHTENED_SECONDS)); tested)
 [x] 6.5  Win condition: level complete when all pacgums eaten
          (all_eaten(); DECISION: super-pacgums count too -> README)
 [x] 6.6  Score rule: score NEVER decreases; carries over between levels
@@ -248,15 +248,21 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          same N/E/S/W tie-break; greedy/local so a ghost can trap
          itself in a dead end — accepted trade-off -> README;
          tests green 2026-07-22)
-[~] 7.5  Eaten: ghost returns to / respawns at its corner after a
+[x] 7.5  Eaten: ghost returns to / respawns at its corner after a
          configurable delay (~5-10 s)
-         (ghost side done: get_eaten teleports home + tick countdown,
-         DECISION: no arcade "eyes travel home" animation -> README;
-         seconds->ticks conversion happens in engine, task 8)
-[ ] 7.6  4 ghosts spawn one per corner; player spawns middle
-[ ] 7.7  Collisions: ghost touches player (not frightened) -> lose a life,
+         (DONE 2026-07-27: engine inc 3 wires get_eaten with
+         to_ticks(RESPAWN_SECONDS)=7 s; ghost.tick() counts down in
+         _move_ghosts; DECISION: no arcade "eyes travel home"
+         animation -> README)
+[x] 7.6  4 ghosts spawn one per corner; player spawns middle
+         (already done by build_level, task 8.2; confirmed by
+         tests/test_level.py)
+[x] 7.7  Collisions: ghost touches player (not frightened) -> lose a life,
          respawn player center; game over at 0 lives
-[ ] 7.8  Player eats frightened ghost -> +points_per_ghost, ghost -> EATEN
+         (DONE 2026-07-27: engine inc 3 _handle_collisions +
+         _lose_life; round reset = every ghost send_home; tested)
+[x] 7.8  Player eats frightened ghost -> +points_per_ghost, ghost -> EATEN
+         (DONE 2026-07-27: engine inc 3 _handle_collisions; tested)
 [x] 7.9  pytest: state transitions, BFS chase step, respawn timer,
          collision outcomes (entity side DONE; collision outcomes
          belong to the engine and move to task 8 tests)
@@ -305,8 +311,17 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          tests/test_engine.py: 10 tests with a FakeClock monkeypatched
          over time.monotonic (cadence, clamp, pause drain, scoring,
          carry-over, victory) — 103 total, lint green.
-         Next inc 3: ghosts + collisions; inc 4: pause key + timer
-         expiry + game end -> name entry chain)
+         Increment 3 IN PLACE 2026-07-27, DELEGATED (acombier re-read
+         pending): _move_ghosts = one shared BFS map per tick,
+         ghost.tick() timers, FRIGHTENED -> engine-owned FleeStrategy,
+         CHASE -> per-ghost personality, EATEN waits at home;
+         _handle_collisions runs TWICE per tick (after player move,
+         after ghost moves) so nobody phases through anyone;
+         _lose_life = player respawn + every ghost send_home (new
+         Ghost method) + GAME_OVER at 0 lives; ghosts move at player
+         speed (1 cell/tick) -> README. 5 new tests (108 total).
+         Next inc 4: pause key + timer expiry (8.5 decision) +
+         game end -> name entry chain)
 [~] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
          random; score and lives carry over
          (engine side done 2026-07-27: _advance_level + build_level

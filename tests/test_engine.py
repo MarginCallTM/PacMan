@@ -4,6 +4,7 @@ import pytest
 
 import pacman.game.engine as engine_mod
 from pacman.config import GameConfig
+from pacman.entities.ghost import GhostState
 from pacman.entities.pellets import Pellets
 from pacman.game.engine import (
     MAX_TICKS_PER_UPDATE, TICKS_PER_SECOND, Engine, to_ticks)
@@ -148,3 +149,59 @@ def test_turn_buffers_only_while_playing(clock: FakeClock) -> None:
     eng.start_game()
     eng.turn(NORTH)
     assert playing_level(eng).player.wanted == NORTH
+
+
+def test_super_pacgum_frightens_all_ghosts(engine: Engine) -> None:
+    """Eating a super-pacgum flips every ghost to FRIGHTENED."""
+    level = playing_level(engine)
+    here = (level.player.x, level.player.y)
+    level.pellets = Pellets(pacgums={(0, 0)}, super_pacgums={here})
+    engine._tick()
+    for ghost in level.ghosts:
+        assert ghost.state is GhostState.FRIGHTENED
+
+
+def test_chasing_ghosts_move_every_tick(engine: Engine) -> None:
+    """Each tick, every non-eaten ghost leaves its current cell."""
+    level = playing_level(engine)
+    start = [(g.x, g.y) for g in level.ghosts]
+    engine._tick()
+    for ghost, position in zip(level.ghosts, start):
+        assert (ghost.x, ghost.y) != position
+
+
+def test_chase_ghost_takes_a_life_and_resets_the_round(
+        engine: Engine) -> None:
+    """Ghost contact costs a life; everyone respawns at home."""
+    level = playing_level(engine)
+    ghost = level.ghosts[0]
+    ghost.x, ghost.y = level.player.x, level.player.y
+    engine._tick()
+    assert level.player.lives == engine.config.lives - 1
+    assert (level.player.x, level.player.y) == level.player.spawn
+    for ghost in level.ghosts:
+        assert (ghost.x, ghost.y) == ghost.corner
+        assert ghost.state is GhostState.CHASE
+
+
+def test_last_life_lost_is_game_over(engine: Engine) -> None:
+    """Losing the final life moves the state machine to GAME_OVER."""
+    level = playing_level(engine)
+    level.player.lives = 1
+    ghost = level.ghosts[0]
+    ghost.x, ghost.y = level.player.x, level.player.y
+    engine._tick()
+    assert engine.machine.state is GameState.GAME_OVER
+
+
+def test_player_eats_frightened_ghost(engine: Engine) -> None:
+    """A frightened ghost is worth points and goes home EATEN."""
+    level = playing_level(engine)
+    ghost = level.ghosts[0]
+    ghost.frighten(100)
+    ghost.x, ghost.y = level.player.x, level.player.y
+    engine._tick()
+    assert engine.score == engine.config.points_per_ghost
+    assert ghost.state is GhostState.EATEN
+    assert (ghost.x, ghost.y) == ghost.corner
+    assert level.player.lives == engine.config.lives
