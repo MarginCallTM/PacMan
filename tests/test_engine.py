@@ -9,7 +9,7 @@ from pacman.config import GameConfig
 from pacman.entities.ghost import GhostState
 from pacman.entities.pellets import Pellets
 from pacman.game.engine import (
-    MAX_TICKS_PER_UPDATE, TICKS_PER_SECOND, Engine, to_ticks)
+    MAX_TICKS_PER_UPDATE, TICKS_PER_SECOND, Cheats, Engine, to_ticks)
 from pacman.game.level import Level
 from pacman.game.states import GameState
 from pacman.highscores import load_highscores
@@ -269,3 +269,73 @@ def test_submit_name_rejects_invalid_input(tmp_path: Path) -> None:
     assert not eng.submit_name("no!")
     assert eng.machine.state is GameState.NAME_ENTRY
     assert load_highscores(path) == []
+
+
+def test_cheat_invincibility_ignores_ghost_contact(engine: Engine) -> None:
+    """With invincibility on, a chasing ghost costs nothing."""
+    engine.cheat_toggle_invincibility()
+    level = playing_level(engine)
+    ghost = level.ghosts[0]
+    ghost.x, ghost.y = level.player.x, level.player.y
+    engine._tick()
+    assert level.player.lives == engine.config.lives
+    assert engine.machine.state is GameState.PLAYING
+
+
+def test_cheat_freeze_stops_ghosts_but_not_the_player(
+        engine: Engine) -> None:
+    """Frozen ghosts stay put while the game keeps ticking."""
+    engine.cheat_toggle_ghost_freeze()
+    level = playing_level(engine)
+    start = [(g.x, g.y) for g in level.ghosts]
+    before = level.ticks_left
+    engine._tick()
+    assert [(g.x, g.y) for g in level.ghosts] == start
+    assert level.ticks_left == before - 1
+
+
+def test_cheat_speed_boost_doubles_player_steps(
+        engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Boost makes the player step twice per tick, once when off."""
+    level = playing_level(engine)
+    calls: list[int] = []
+
+    def fake_step(maze: object) -> bool:
+        calls.append(1)
+        return True
+
+    monkeypatch.setattr(level.player, "step", fake_step)
+    engine.cheat_toggle_speed_boost()
+    engine._tick()
+    assert len(calls) == 2
+    engine.cheat_toggle_speed_boost()
+    engine._tick()
+    assert len(calls) == 3
+
+
+def test_cheat_extra_life_adds_one(engine: Engine) -> None:
+    """The extra-life cheat grants exactly one life, in game only."""
+    engine.cheat_extra_life()
+    assert playing_level(engine).player.lives == engine.config.lives + 1
+
+
+def test_cheat_level_skip_wins_the_level(engine: Engine) -> None:
+    """Skip advances like a real clear, VICTORY on the last level."""
+    engine.score = 70
+    engine.cheat_level_skip()
+    assert playing_level(engine).number == 2
+    assert engine.score == 70
+    playing_level(engine).number = len(engine.config.levels)
+    engine.cheat_level_skip()
+    assert engine.machine.state is GameState.VICTORY
+
+
+def test_cheats_reset_on_new_game(engine: Engine) -> None:
+    """Leftover cheats never leak into the next game."""
+    engine.cheat_toggle_invincibility()
+    engine.cheat_toggle_ghost_freeze()
+    engine.cheat_toggle_speed_boost()
+    engine.toggle_pause()
+    engine.quit_to_menu()
+    engine.start_game()
+    assert engine.cheats == Cheats()

@@ -376,13 +376,28 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 10. CHEAT MODE (in engine, keys documented)                            owner: both (pair)
 -------------------------------------------------------------------------------
-[ ] 10.1  Invincibility toggle (no life lost on ghost contact)
-[ ] 10.2  Level skip (instantly win current level)
-[ ] 10.3  Ghost freeze (ghosts stop moving)
-[ ] 10.4  Extra lives (add lives)
-[ ] 10.5  Speed boost (player moves faster)
+          NOTE 2026-07-27: engine side DONE for 10.1-10.5 (Cheats
+          dataclass + cheat_* methods, reset by start_game, 6 tests);
+          REMAINING for the whole task: bind keys in the UI loop
+          (pac-man.py task 1 / sloubiat merge) + 10.6 docs.
+[x] 10.1  Invincibility toggle (no life lost on ghost contact)
+          (cheat_toggle_invincibility: _handle_collisions skips the
+          CHASE branch; frightened ghosts stay edible)
+[x] 10.2  Level skip (instantly win current level)
+          (cheat_level_skip reuses _advance_level: carry-over and
+          VICTORY on last level behave like a real clear)
+[x] 10.3  Ghost freeze (ghosts stop moving)
+          (cheat_toggle_ghost_freeze: _tick skips the ghost half;
+          DECISION: their timers freeze too -> README)
+[x] 10.4  Extra lives (add lives)
+          (cheat_extra_life: +1 life, PLAYING only)
+[x] 10.5  Speed boost (player moves faster)
+          (cheat_toggle_speed_boost: 2 player steps per tick, eating
+          between steps so no pellet is jumped over)
 [ ] 10.6  Document all cheat keys in README + in the Instructions screen
           (must genuinely help the reviewer test everything)
+          (blocked on key bindings: keys get chosen when pac-man.py
+          is rewritten, task 1)
 
 --------------------------------------------------------------------------------
 11. PACKAGING & DEPLOYMENT (Itch.io)                                   owner: A (acombier)

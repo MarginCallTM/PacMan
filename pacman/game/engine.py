@@ -2,6 +2,7 @@
 
 import random
 import time
+from dataclasses import dataclass
 
 from pacman.config import GameConfig
 from pacman.entities.ghost import GhostState
@@ -35,6 +36,21 @@ def to_ticks(seconds: float) -> int:
     return max(1, round(seconds * TICKS_PER_SECOND))
 
 
+@dataclass
+class Cheats:
+    """Active cheat toggles (reviewer tools, subject VI.5).
+
+    Attributes:
+        invincible: Ghost contact costs no life.
+        frozen: Ghosts stop moving (their timers freeze too).
+        boost: The player moves two cells per tick instead of one.
+    """
+
+    invincible: bool = False
+    frozen: bool = False
+    boost: bool = False
+
+
 class Engine:
     """Owns the game simulation; knows nothing about graphics.
 
@@ -58,10 +74,12 @@ class Engine:
         self._accumulator = 0.0
         self._rng = random.Random(config.seed)
         self._flee = FleeStrategy()
+        self.cheats = Cheats()
 
     def start_game(self) -> None:
-        """Reset the score and enter level 1 (MENU -> PLAYING)."""
+        """Reset score and cheats, enter level 1 (MENU -> PLAYING)."""
         self.score = 0
+        self.cheats = Cheats()
         self.machine.transition_to(GameState.PLAYING)
         self._load_level(1, self.config.lives)
 
@@ -155,6 +173,33 @@ class Engine:
         self.machine.transition_to(GameState.MENU)
         return True
 
+    def cheat_toggle_invincibility(self) -> None:
+        """Cheat: toggle 'ghost contact costs no life'."""
+        self.cheats.invincible = not self.cheats.invincible
+
+    def cheat_toggle_ghost_freeze(self) -> None:
+        """Cheat: toggle 'ghosts stop moving' (timers freeze too)."""
+        self.cheats.frozen = not self.cheats.frozen
+
+    def cheat_toggle_speed_boost(self) -> None:
+        """Cheat: toggle 'player moves two cells per tick'."""
+        self.cheats.boost = not self.cheats.boost
+
+    def cheat_extra_life(self) -> None:
+        """Cheat: grant one extra life; only during gameplay."""
+        if self.machine.state is GameState.PLAYING and self.level:
+            self.level.player.lives += 1
+
+    def cheat_level_skip(self) -> None:
+        """Cheat: instantly win the current level; only in gameplay.
+
+        Reuses _advance_level, so score/lives carry-over and the
+        VICTORY transition on the last level behave exactly like a
+        real level clear.
+        """
+        if self.machine.state is GameState.PLAYING and self.level:
+            self._advance_level(self.level)
+
     def _tick(self) -> None:
         """Run one fixed simulation step.
 
@@ -162,6 +207,9 @@ class Engine:
         after the ghosts move - so neither side can walk through the
         other within one tick. A lost life ends the tick early
         (round reset); so does leaving PLAYING (game over).
+        Cheats hook in here: boost doubles the player steps (eating
+        between steps, so no pellet is jumped over) and freeze skips
+        the whole ghost half of the tick.
         """
         if self.level is None or self.machine.state is not GameState.PLAYING:
             return
@@ -173,13 +221,16 @@ class Engine:
             level.ticks_left = to_ticks(self.config.level_max_time)
             self._lose_life(level)
             return
-        level.player.step(level.maze)
-        self._eat_pellet(level)
+        steps = 2 if self.cheats.boost else 1
+        for _ in range(steps):
+            level.player.step(level.maze)
+            self._eat_pellet(level)
         if self._handle_collisions(level):
             return
-        self._move_ghosts(level)
-        if self._handle_collisions(level):
-            return
+        if not self.cheats.frozen:
+            self._move_ghosts(level)
+            if self._handle_collisions(level):
+                return
         if level.complete():
             self._advance_level(level)
 
@@ -244,7 +295,8 @@ class Engine:
             if ghost.state is GhostState.FRIGHTENED:
                 self.score += self.config.points_per_ghost
                 ghost.get_eaten(to_ticks(RESPAWN_SECONDS))
-            elif ghost.state is GhostState.CHASE:
+            elif (ghost.state is GhostState.CHASE
+                    and not self.cheats.invincible):
                 self._lose_life(level)
                 return True
         return False
