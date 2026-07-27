@@ -293,8 +293,10 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          Chase/Random (5th-ghost drill ready), lives passed in for
          carry-over, ticks countdown; tests/test_level.py, 7 tests,
          green 2026-07-22 — 93 total)
-[~] 8.3  engine.py: main loop (events -> update -> render), fixed
+[x] 8.3  engine.py: main loop (events -> update -> render), fixed
          timestep / clock
+         (ENGINE SIDE COMPLETE 2026-07-27, incs 1-4 below; the
+         events/render halves live in ui/ + pac-man.py — task 1)
          (increment 1 IN PLACE 2026-07-23, DELEGATED file — defense
          material, acombier must re-read: to_ticks() seconds->ticks,
          TICKS_PER_SECOND=8, monotonic-clock accumulator in update(),
@@ -320,21 +322,38 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          _lose_life = player respawn + every ghost send_home (new
          Ghost method) + GAME_OVER at 0 lives; ghosts move at player
          speed (1 cell/tick) -> README. 5 new tests (108 total).
-         Next inc 4: pause key + timer expiry (8.5 decision) +
-         game end -> name entry chain)
-[~] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
+         Increment 4 IN PLACE 2026-07-27, DELEGATED (acombier re-read
+         pending): timer expiry decision wired in _tick (see 8.5);
+         toggle_pause / quit_to_menu / enter_name_entry /
+         submit_name public API for the UI; submit_name re-validates
+         via highscores.is_valid_name (engine = last line of defense
+         before the file) then load -> add_score -> save -> MENU.
+         5 new tests (113 total), lint green.)
+[x] 8.4  Level progression: >= 10 levels; level 1 fixed seed, next levels
          random; score and lives carry over
-         (engine side done 2026-07-27: _advance_level + build_level
-         seed policy + carry-over, tested; stays [~] until 8.5 timer
-         decision and a full multi-level playthrough exist)
-[ ] 8.5  Timer expiry behavior: DECIDE it (e.g., lose a life / restart
+         (DONE 2026-07-27: _advance_level + build_level seed policy +
+         carry-over, tested in test_engine.py + test_level.py)
+[x] 8.5  Timer expiry behavior: DECIDE it (e.g., lose a life / restart
          level) and DOCUMENT it in README
-[ ] 8.6  Pause / resume during gameplay
-[ ] 8.7  Game end (win or lose): show final score -> name prompt ->
+         (DECISION 2026-07-27: timeout costs one life, the timer
+         refills, round resets (player center, ghosts home) — at 0
+         lives it naturally becomes game over. Still to DOCUMENT in
+         README, task 13)
+[x] 8.6  Pause / resume during gameplay
+         (DONE 2026-07-27: Engine.toggle_pause + quit_to_menu;
+         accumulator already drained while paused (inc 1); tested)
+[~] 8.7  Game end (win or lose): show final score -> name prompt ->
          save highscore -> back to main menu
-[ ] 8.8  Keep engine + entities graphics-free (unit-testable); only
+         (ENGINE SIDE DONE 2026-07-27: enter_name_entry + submit_name
+         (save + back to MENU), tested incl. invalid-name refusal.
+         REMAINING: wire Sloubiat's GameOver/Victory/NameEntry
+         screens (9.4/9.5, currently behind dev shortcuts) to this
+         API in pac-man.py — needs the sloubiat branch merge)
+[x] 8.8  Keep engine + entities graphics-free (unit-testable); only
          ui/ touches the MLX wrapper; timing via stdlib `time`
          (MLX has no clock)
+         (HOLDS 2026-07-27: engine imports only stdlib random/time +
+         pacman data modules; the whole suite runs headless on macOS)
 
 --------------------------------------------------------------------------------
 9. UI SCREENS & HUD (pacman/ui/menus.py)                               owner: Sloubiat

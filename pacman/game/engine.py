@@ -9,6 +9,8 @@ from pacman.entities.ghost_ai import FleeStrategy, bfs_distances
 from pacman.entities.pellets import PelletType
 from pacman.game.level import Level, build_level
 from pacman.game.states import GameState, StateMachine
+from pacman.highscores import (
+    add_score, is_valid_name, load_highscores, save_highscores)
 from pacman.maze_loader import DELTAS
 
 # Simulation cadence: entities move at most one cell per tick.
@@ -109,6 +111,50 @@ class Engine:
         if self.machine.state is GameState.PLAYING and self.level:
             self.level.player.turn(direction)
 
+    def toggle_pause(self) -> None:
+        """Flip between PLAYING and PAUSED; ignored on other screens."""
+        if self.machine.state is GameState.PLAYING:
+            self.machine.transition_to(GameState.PAUSED)
+        elif self.machine.state is GameState.PAUSED:
+            self.machine.transition_to(GameState.PLAYING)
+
+    def quit_to_menu(self) -> None:
+        """Abandon the paused game and return to the main menu."""
+        if self.machine.state is GameState.PAUSED:
+            self.level = None
+            self.machine.transition_to(GameState.MENU)
+
+    def enter_name_entry(self) -> None:
+        """Move from an end screen (win or lose) to the name prompt."""
+        if self.machine.state in (GameState.GAME_OVER, GameState.VICTORY):
+            self.machine.transition_to(GameState.NAME_ENTRY)
+
+    def submit_name(self, name: str) -> bool:
+        """Persist the final score under ``name`` and go to the menu.
+
+        The name is re-validated here even though the UI validates
+        while typing: the engine is the last line of defense before
+        the highscore file.
+
+        Args:
+            name: Player name typed on the name-entry screen.
+
+        Returns:
+            True on success; False when the name is invalid or the
+            game is not on the name-entry screen (the UI should keep
+            that screen open).
+        """
+        if self.machine.state is not GameState.NAME_ENTRY:
+            return False
+        if not is_valid_name(name):
+            return False
+        path = self.config.highscore_filename
+        scores = add_score(load_highscores(path), name, self.score)
+        save_highscores(path, scores)
+        self.level = None
+        self.machine.transition_to(GameState.MENU)
+        return True
+
     def _tick(self) -> None:
         """Run one fixed simulation step.
 
@@ -121,6 +167,12 @@ class Engine:
             return
         level = self.level
         level.tick()
+        if level.timed_out():
+            # DECISION (task 8.5): a timeout costs one life and the
+            # timer restarts - documented in the README.
+            level.ticks_left = to_ticks(self.config.level_max_time)
+            self._lose_life(level)
+            return
         level.player.step(level.maze)
         self._eat_pellet(level)
         if self._handle_collisions(level):

@@ -1,5 +1,7 @@
 """Tests for pacman.game.engine: fixed timestep, scoring, progression."""
 
+from pathlib import Path
+
 import pytest
 
 import pacman.game.engine as engine_mod
@@ -10,6 +12,7 @@ from pacman.game.engine import (
     MAX_TICKS_PER_UPDATE, TICKS_PER_SECOND, Engine, to_ticks)
 from pacman.game.level import Level
 from pacman.game.states import GameState
+from pacman.highscores import load_highscores
 from pacman.maze_loader import NORTH
 
 
@@ -205,3 +208,64 @@ def test_player_eats_frightened_ghost(engine: Engine) -> None:
     assert ghost.state is GhostState.EATEN
     assert (ghost.x, ghost.y) == ghost.corner
     assert level.player.lives == engine.config.lives
+
+
+def test_timer_expiry_costs_a_life_and_restarts(engine: Engine) -> None:
+    """Running out of time loses a life and refills the timer."""
+    level = playing_level(engine)
+    level.ticks_left = 1
+    engine._tick()
+    assert level.player.lives == engine.config.lives - 1
+    assert level.ticks_left == to_ticks(engine.config.level_max_time)
+    assert (level.player.x, level.player.y) == level.player.spawn
+
+
+def test_toggle_pause_flips_playing_and_paused(engine: Engine) -> None:
+    """Pause toggles from gameplay, and back; menu is unaffected."""
+    engine.toggle_pause()
+    assert engine.machine.state is GameState.PAUSED
+    engine.toggle_pause()
+    assert engine.machine.state is GameState.PLAYING
+    fresh = Engine(GameConfig())
+    fresh.toggle_pause()
+    assert fresh.machine.state is GameState.MENU
+
+
+def test_quit_to_menu_only_from_pause(engine: Engine) -> None:
+    """The pause menu can abandon the game; gameplay cannot."""
+    engine.quit_to_menu()
+    assert engine.machine.state is GameState.PLAYING
+    engine.toggle_pause()
+    engine.quit_to_menu()
+    assert engine.machine.state is GameState.MENU
+    assert engine.level is None
+
+
+def test_game_end_saves_score_and_returns_to_menu(
+        tmp_path: Path) -> None:
+    """GAME_OVER -> name entry -> saved highscore -> main menu."""
+    path = str(tmp_path / "highscores.json")
+    eng = Engine(GameConfig(highscore_filename=path))
+    eng.start_game()
+    eng.score = 300
+    eng.machine.transition_to(GameState.GAME_OVER)
+    eng.enter_name_entry()
+    assert eng.machine.state is GameState.NAME_ENTRY
+    assert eng.submit_name("Bob")
+    assert eng.machine.state is GameState.MENU
+    assert eng.level is None
+    assert load_highscores(path) == [("Bob", 300)]
+
+
+def test_submit_name_rejects_invalid_input(tmp_path: Path) -> None:
+    """A bad name is refused and the name-entry screen stays open."""
+    path = str(tmp_path / "highscores.json")
+    eng = Engine(GameConfig(highscore_filename=path))
+    eng.start_game()
+    eng.machine.transition_to(GameState.VICTORY)
+    eng.enter_name_entry()
+    assert not eng.submit_name("way too long name")
+    assert not eng.submit_name("")
+    assert not eng.submit_name("no!")
+    assert eng.machine.state is GameState.NAME_ENTRY
+    assert load_highscores(path) == []
