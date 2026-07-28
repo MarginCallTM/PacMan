@@ -8,15 +8,24 @@ without inheriting from this class.
 
 from typing import Any
 
+from pacman.entities.pellets import Pellets
 from pacman.maze_loader import EAST, NORTH, SOLID, SOUTH, WEST, Maze
+from pacman.ui.keys import KEY_Q
 from pacman.ui.mlx_window import MlxWindow
+from pacman.ui.screen import Screen
 
 _SOLID_COLOR = 0xFF0000FF  # fixed blue for the "42" pattern (SOLID cells)
 _WALL_COLOR = 0xFFFFFFFF  # fixed white outline for the "42" pattern
 _BACKGROUND_COLOR = 0xFF000000  # fixed black for the background
+_PACGUM_COLOR = 0xFFFFFFAA  # small pale-yellow dot
+_SUPER_PACGUM_COLOR = 0xFFFF8000  # bigger orange dot, in the corners
+_PACGUM_RATIO = 0.2  # dot side, as a fraction of the cell size
+_SUPER_PACGUM_RATIO = 0.5
+_MARGIN = 50  # breathing room kept around the maze on every side
+_HUD_HEIGHT = 100  # space reserved at the bottom of the window for the HUD
 
 
-class MazeRenderer:
+class MazeRenderer(Screen):
     """Draws one :class:`Maze` into a shared :class:`MlxWindow`."""
 
     def __init__(self, window: MlxWindow) -> None:
@@ -25,14 +34,13 @@ class MazeRenderer:
         Args:
             window: The shared MLX window to draw into.
         """
+        super().__init__()
         self._window = window
         self._maze: Maze | None = None
-        self._cell_w = 0
-        self._cell_h = 0
+        self._pellets: Pellets | None = None
+        self._cell_size = 0
         self._offset_x = 0
         self._offset_y = 0
-        self._theme_index = 0
-        self._dirty = True
 
     def load(self, maze: Maze) -> None:
         """Compute the cell size for ``maze`` and mark the view dirty.
@@ -41,17 +49,28 @@ class MazeRenderer:
             maze: The maze to display starting next frame.
         """
         self._maze = maze
-        usable_w = self._window.width - 50
-        usable_h = self._window.height - 150
-        size = min(usable_w, usable_h)
-        self._cell_w = size // maze.width
-        self._cell_h = size // maze.height
+        play_w = self._window.width - _MARGIN
+        play_h = self._window.height - _HUD_HEIGHT - _MARGIN
+        self._cell_size = min(
+            play_w // maze.width, play_h // maze.height)
         self._offset_x = (
-            (self._window.width - self._cell_w * maze.width) // 2)
+            (self._window.width - self._cell_size * maze.width) // 2)
         self._offset_y = (
-            ((self._window.height - 100) - self._cell_h * maze.height)
-            // 2)
-        self._dirty = True
+            (self._window.height - _HUD_HEIGHT
+             - self._cell_size * maze.height) // 2)
+        self.refresh()
+
+    def load_pellets(self, pellets: Pellets) -> None:
+        """Attach the level's pellet state and mark the view dirty.
+
+        Call this again (same object or not) every time a pellet gets
+        eaten, so the next frame stops drawing it.
+
+        Args:
+            pellets: The pacgums/super-pacgums still on the board.
+        """
+        self._pellets = pellets
+        self.refresh()
 
     def handle_key(self, *params: Any) -> None:
         """React to a key press: quit, toggle paff, cycle colors.
@@ -60,67 +79,91 @@ class MazeRenderer:
             params: MLX hook payload; ``params[0]`` is the keycode.
         """
         keycode = params[0]
-        if keycode == 113:  # q
+        if keycode == KEY_Q:
             self._window.destroy()
 
-    def render_if_dirty(self, *_: Any) -> None:
-        """MLX loop-hook: redraw only when something actually changed."""
-        if not self._dirty or self._maze is None:
+    def _render(self) -> None:
+        """Redraw the maze and pellets, then present the buffer.
+
+        Nothing to draw yet if :meth:`load` hasn't run: return without
+        presenting so the previous screen stays visible until the
+        maze is actually ready.
+        """
+        if self._maze is None:
             return
+        self._window.clear(_BACKGROUND_COLOR)
         self._draw(self._maze)
         self._window.present()
-        self._dirty = False
 
     def _draw(self, maze: Maze) -> None:
-        """Fill the whole buffer with the background, then the maze.
-
-        The buffer is the size of the whole window, so it must be
-        cleared here in full: :meth:`MlxWindow.present` blits it at
-        ``(0, 0)`` over the entire window, and this is what erases
-        whatever the previous screen (e.g. a menu) had drawn.
+        """Rasterize every cell of ``maze`` into the off-screen buffer.
 
         Args:
             maze: The maze to rasterize.
         """
-        self._window.fill_rect(
-            0, self._window.width - 1,
-            0, self._window.height - 1, _BACKGROUND_COLOR)
         for y in range(maze.height):
             for x in range(maze.width):
-                real_x = self._offset_x + x * self._cell_w
-                real_y = self._offset_y + y * self._cell_h
+                real_x = self._offset_x + x * self._cell_size
+                real_y = self._offset_y + y * self._cell_size
                 if maze.grid[y][x] == SOLID:
                     self._window.fill_rect(
-                        real_x, real_x + self._cell_w,
-                        real_y, real_y + self._cell_h, _SOLID_COLOR)
+                        real_x, real_x + self._cell_size,
+                        real_y, real_y + self._cell_size, _SOLID_COLOR)
                     self._window.fill_rect(
-                        real_x, real_x + self._cell_w,
+                        real_x, real_x + self._cell_size,
                         real_y, real_y, _WALL_COLOR)
                     self._window.fill_rect(
-                        real_x, real_x + self._cell_w,
-                        real_y + self._cell_h, real_y + self._cell_h,
+                        real_x, real_x + self._cell_size,
+                        real_y + self._cell_size, real_y + self._cell_size,
                         _WALL_COLOR)
                     self._window.fill_rect(
-                        real_x + self._cell_w, real_x + self._cell_w,
-                        real_y, real_y + self._cell_h, _WALL_COLOR)
+                        real_x + self._cell_size, real_x + self._cell_size,
+                        real_y, real_y + self._cell_size, _WALL_COLOR)
                     self._window.fill_rect(
-                        real_x, real_x, real_y, real_y + self._cell_h,
+                        real_x, real_x, real_y, real_y + self._cell_size,
                         _WALL_COLOR)
                     continue
                 if maze.grid[y][x] & NORTH:
                     self._window.fill_rect(
-                        real_x, real_x + self._cell_w,
+                        real_x, real_x + self._cell_size,
                         real_y, real_y, _WALL_COLOR)
                 if maze.grid[y][x] & SOUTH:
                     self._window.fill_rect(
-                        real_x, real_x + self._cell_w,
-                        real_y + self._cell_h, real_y + self._cell_h,
+                        real_x, real_x + self._cell_size,
+                        real_y + self._cell_size, real_y + self._cell_size,
                         _WALL_COLOR)
                 if maze.grid[y][x] & EAST:
                     self._window.fill_rect(
-                        real_x + self._cell_w, real_x + self._cell_w,
-                        real_y, real_y + self._cell_h, _WALL_COLOR)
+                        real_x + self._cell_size, real_x + self._cell_size,
+                        real_y, real_y + self._cell_size, _WALL_COLOR)
                 if maze.grid[y][x] & WEST:
                     self._window.fill_rect(
-                        real_x, real_x, real_y, real_y + self._cell_h,
+                        real_x, real_x, real_y, real_y + self._cell_size,
                         _WALL_COLOR)
+        if self._pellets is not None:
+            self._draw_pellets(self._pellets)
+
+    def _draw_pellets(self, pellets: Pellets) -> None:
+        """Draw one dot per remaining pellet, centered in its cell.
+
+        Args:
+            pellets: The pacgums/super-pacgums still on the board.
+        """
+        for x, y in pellets.pacgums:
+            self._draw_dot(x, y, _PACGUM_RATIO, _PACGUM_COLOR)
+        for x, y in pellets.super_pacgums:
+            self._draw_dot(x, y, _SUPER_PACGUM_RATIO, _SUPER_PACGUM_COLOR)
+
+    def _draw_dot(self, x: int, y: int, ratio: float, color: int) -> None:
+        """Fill a small disc centered in cell ``(x, y)``.
+
+        Args:
+            x: Cell column.
+            y: Cell row.
+            ratio: Dot diameter, as a fraction of the cell size.
+            color: 0xAARRGGBB pixel value.
+        """
+        radius = max(1, int(self._cell_size * ratio / 2))
+        center_x = self._offset_x + x * self._cell_size + self._cell_size // 2
+        center_y = self._offset_y + y * self._cell_size + self._cell_size // 2
+        self._window.fill_disc(center_x, center_y, radius, color)

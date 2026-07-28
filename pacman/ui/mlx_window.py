@@ -9,8 +9,10 @@ belongs in a separate renderer that *holds* an ``MlxWindow``, not in
 this file.
 """
 
+import signal
 from typing import Any, Callable
 
+import numpy as np
 from mlx import Mlx
 
 
@@ -33,8 +35,13 @@ class MlxWindow:
         self._img = self._mx.mlx_new_image(
             self._mlx_ptr, self.width, self.height)
         addr_raw, bpp, line_size, _ = self._mx.mlx_get_data_addr(self._img)
-        self._addr = addr_raw.cast('I')
         self._stride = line_size // (bpp // 8)
+        # Zero-copy view: writes to this array land directly in MLX's
+        # own image buffer, no data ever gets duplicated.
+        self._pixels: np.ndarray = np.frombuffer(
+            addr_raw, dtype=np.uint32,
+            count=self.height * self._stride,
+        ).reshape(self.height, self._stride)
         self._window: Any = None
 
     def create_window(self, title: str) -> None:
@@ -46,13 +53,28 @@ class MlxWindow:
         self._window = self._mx.mlx_new_window(
             self._mlx_ptr, self.width, self.height, title)
 
+    def clear(self, color: int) -> None:
+        """Fill the whole off-screen buffer with a single flat color.
+
+        Every screen (maze, menus, HUD...) calls this first, before
+        drawing anything else: :meth:`present` blits the full buffer,
+        so without this the previous screen's pixels would still show
+        through wherever the new screen doesn't draw over them.
+
+        Args:
+            color: 0xAARRGGBB pixel value.
+        """
+        self._pixels[:] = color
+
     def fill_rect(self, x_from: int, x_to: int, y_from: int, y_to: int,
                   color: int) -> None:
         """Fill an axis-aligned pixel rectangle in the off-screen buffer.
 
         This is our MLX-equivalent of ``pixel_put`` called in a loop:
-        MLX has no rectangle-fill function, so we write every pixel
-        ourselves.
+        MLX has no rectangle-fill function, so we still decide and
+        write every pixel ourselves. numpy just vectorizes that same
+        loop in C instead of running it through the Python
+        interpreter one pixel at a time.
 
         Args:
             x_from: Left edge, inclusive.
@@ -61,9 +83,28 @@ class MlxWindow:
             y_to: Bottom edge, inclusive.
             color: 0xAARRGGBB pixel value.
         """
-        for x in range(x_from, x_to + 1):
-            for y in range(y_from, y_to + 1):
-                self._addr[y * self._stride + x] = color
+        self._pixels[y_from:y_to + 1, x_from:x_to + 1] = color
+
+    def fill_disc(self, cx: int, cy: int, radius: int, color: int) -> None:
+        """Fill a filled circle in the off-screen buffer.
+
+        Same MLX-equivalence reasoning as :meth:`fill_rect`: MLX has no
+        disc-fill primitive, so every pixel inside the circle is
+        tested and written by hand, using the same squared-distance
+        test as before, vectorized with numpy instead of a nested
+        Python loop.
+
+        Args:
+            cx: Center x, in pixels.
+            cy: Center y, in pixels.
+            radius: Circle radius, in pixels.
+            color: 0xAARRGGBB pixel value.
+        """
+        y_from, y_to = cy - radius, cy + radius + 1
+        x_from, x_to = cx - radius, cx + radius + 1
+        y_indices, x_indices = np.ogrid[y_from:y_to, x_from:x_to]
+        mask = (x_indices - cx) ** 2 + (y_indices - cy) ** 2 <= radius ** 2
+        self._pixels[y_from:y_to, x_from:x_to][mask] = color
 
     def draw_text(self, x: int, y: int, color: int, text: str) -> None:
         """Draw a text string (thin wrapper over ``mlx_string_put``).
@@ -113,7 +154,18 @@ class MlxWindow:
         self._mx.mlx_loop_hook(self._mlx_ptr, callback, None)
 
     def start_loop(self) -> None:
-        """Block and run the MLX event loop until :meth:`destroy`."""
+        """Block and run the MLX event loop until :meth:`destroy`.
+
+        While this call is blocked inside the C event loop, Python only
+        runs again through our own ctypes hooks. If SIGINT (Ctrl+C)
+        raised the default ``KeyboardInterrupt`` from inside one of
+        those hooks, ctypes would swallow it at the C/Python boundary
+        instead of letting it reach our caller. So we take SIGINT over
+        for the duration of the loop and route it straight to
+        :meth:`destroy` - the same clean shutdown already used for the
+        window's close icon - instead of trying (and failing) to raise.
+        """
+        signal.signal(signal.SIGINT, self.destroy)
         self._mx.mlx_loop(self._mlx_ptr)
 
     def destroy(self, *_: Any) -> None:

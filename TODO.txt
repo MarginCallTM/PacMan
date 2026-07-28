@@ -176,21 +176,22 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          reusable buffer/hooks wrapper, no game knowledge), cell-size
          computation from maze dimensions (MazeRenderer.load)
 [x] 5.2  Draw maze walls from the bitmask (line per wall bit) — done in
-         MazeRenderer._draw; value-15 cells ARE drawn as filled blue
-         blocks + white outline (_SOLID_COLOR) — previous note was
-         stale vs the merged code. Tested headlessly: fake pixel
-         buffer injected in place of the MLX image, pixels read back
-         (tests/test_ui_headless.py, 4 tests, green 2026-07-22 —
-         fill_rect bounds, background, SOLID blue, NORTH walls white)
+         MazeRenderer._draw. value-15 cells filled with a distinct
+         blue (_SOLID_COLOR) plus a white outline (_WALL_COLOR) — the
+         "42" pattern IS visually called out (2026-07-23 check)
 [ ] 5.3  Draw the player (position + facing direction)
 [ ] 5.4  Keyboard input: arrows AND WASD, 4-direction movement,
          corridor-only (uses maze_loader.can_move)
-[~] 5.5  Grid-to-pixel conversion: cell_w/cell_h computed once in
-         MazeRenderer.load, reused by _draw/render_if_dirty; not yet
-         extracted as a standalone helper other modules could share
+[~] 5.5  Grid-to-pixel conversion: cell_w/cell_h merged into a single
+         _cell_size (forces square cells regardless of maze aspect
+         ratio), computed once in MazeRenderer.load, reused by
+         _draw/_draw_dot; still not extracted as a standalone helper
+         other modules could share
 [ ] 5.6  Playable sandbox milestone: walk a maze on screen
-[ ] 5.7  Draw pellets, super-pellets, ghosts (per-state colors:
-         chase / frightened / eaten), HUD (see 9.2)
+[~] 5.7  Draw pellets, super-pellets (done: _draw_pellets/_draw_dot,
+         wired from pac-man.py via load_pellets, 2026-07-23); ghosts
+         (per-state colors: chase/frightened/eaten) and HUD (see 9.2)
+         still not drawn
 
 --------------------------------------------------------------------------------
 6. PELLETS & SCORING (pacman/entities/pellets.py)                      owner: A (acombier)
@@ -360,18 +361,44 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 [~] 9.1  Main menu: Start Game / View Highscores (top 10 + names) /
          Instructions (controls + rules + cheat keys) / Exit
-         (Sloubiat, merged 2026-07-22: MainMenu with 4 options,
-         arrow+enter navigation, selected-button highlight;
-         InstructionsScreen static text. Missing: highscores view,
-         cheat keys in the instructions text. Defense note: labels
-         drawn AFTER present() because mlx_string_put writes to the
-         window, not the buffer — order is load-bearing)
+         (MainMenu class done: all 4 options, Up/Down/Enter
+         navigation, selected-button highlight; all 4 now wired in
+         pac-man.py. View Highscores -> new HighscoresScreen
+         (pacman/ui/menus.py): scores injected via load(), same
+         pattern as MazeRenderer.load/_EndScreen.set_score; draws
+         rank+name+score per entry (or a placeholder when the board
+         is empty); back to menu on Enter/Escape like
+         InstructionsScreen; fed with load_highscores(config.
+         highscore_filename) at startup in pac-man.py. flake8/mypy/
+         pytest all green (82 tests — no dedicated test yet, ui/
+         screens aren't unit-tested by design). 2026-07-27.
+         Only remaining gap on this task: Instructions doesn't list
+         cheat keys yet — blocked on cheat mode itself, task 10,
+         still all [ ])
 [ ] 9.2  In-game HUD, always visible: score, lives, level, remaining time
 [ ] 9.3  Pause menu: Resume / Return to main menu
-[ ] 9.4  Game Over screen: final score + name entry prompt
-[ ] 9.5  Victory screen: final score + congratulatory message + name entry
-[ ] 9.6  Name input widget: live validation (max 10 chars, alphanumeric
+         (InstructionsScreen text already advertises "P: Pause" but
+         no PauseScreen class / P-key hook exists yet, 2026-07-27)
+[~] 9.4  Game Over screen: final score + name entry prompt
+         (GameOverScreen done: title + final score + "press Enter";
+         wired in pac-man.py but only behind the dev-only KEY_G
+         shortcut (see engine TODO comment in run_app); on
+         confirm it goes straight back to the main menu, NOT through
+         NameEntryScreen yet, and nothing is saved to highscores.py
+         -> still needed once the real engine drives game-over,
+         2026-07-27)
+[~] 9.5  Victory screen: final score + congratulatory message + name entry
+         (VictoryScreen done, same pattern/gaps as 9.4: dev-only
+         KEY_V shortcut, no chain to NameEntryScreen or highscore
+         save yet, 2026-07-27)
+[x] 9.6  Name input widget: live validation (max 10 chars, alphanumeric
          + spaces only)
+         (NameEntryScreen done: reuses highscores.is_valid_name +
+         MAX_NAME_LENGTH so the same rule governs typing and storage
+         — single source of truth; backspace, live refresh, Enter
+         only confirms a valid name; wired after "Start Game" in
+         pac-man.py today as a placeholder flow, reusable as-is once
+         chained after 9.4/9.5, 2026-07-27)
 
 --------------------------------------------------------------------------------
 10. CHEAT MODE (in engine, keys documented)                            owner: both (pair)

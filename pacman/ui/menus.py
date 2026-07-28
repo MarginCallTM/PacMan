@@ -2,15 +2,33 @@
 
 from typing import Any
 
+from pacman.highscores import MAX_NAME_LENGTH, is_valid_name
+from pacman.ui.keys import (KEY_BACKSPACE, KEY_DOWN, KEY_ENTER, KEY_ESCAPE,
+                            KEY_UP)
 from pacman.ui.mlx_window import MlxWindow
+from pacman.ui.screen import Screen
 
-KEY_UP = 65362
-KEY_DOWN = 65364
-KEY_ENTER = 65293
-KEY_ESCAPE = 65307
+_TEXT_CHAR_WIDTH_PX = 8  # MLX has no text-measurement primitive, so
+# every screen below approximates horizontal centering with this
+# fixed average glyph width instead
 
 
-class MainMenu:
+def _draw_centered(window: MlxWindow, center_x: int, y: int, color: int,
+                   text: str) -> None:
+    """Draw one line of text horizontally centered on ``center_x``.
+
+    Args:
+        window: The shared MLX window to draw into.
+        center_x: Pixel column the text should be centered on.
+        y: Baseline row in pixels.
+        color: 0xAARRGGBB pixel value.
+        text: String to draw.
+    """
+    x = center_x - (len(text) * _TEXT_CHAR_WIDTH_PX) // 2
+    window.draw_text(x, y, color, text)
+
+
+class MainMenu(Screen):
     """Main menu: Start Game / View Highscores / Instructions / Exit."""
 
     OPTIONS = ("Start Game", "View Highscores", "Instructions", "Exit")
@@ -30,14 +48,10 @@ class MainMenu:
         Args:
             window: The shared MLX window to draw into.
         """
+        super().__init__()
         self._window = window
         self._selected = 0
-        self._dirty = True
         self.chosen: str | None = None
-
-    def refresh(self) -> None:
-        """Force a redraw next tick (call this when re-entering)."""
-        self._dirty = True
 
     def handle_key(self, *params: Any) -> None:
         """React to a key press: move the selection or confirm it.
@@ -48,33 +62,19 @@ class MainMenu:
         keycode = params[0]
         if keycode == KEY_UP:
             self._selected = (self._selected - 1) % len(self.OPTIONS)
-            self._dirty = True
+            self.refresh()
         elif keycode == KEY_DOWN:
             self._selected = (self._selected + 1) % len(self.OPTIONS)
-            self._dirty = True
+            self.refresh()
         elif keycode == KEY_ENTER:
             self.chosen = self.OPTIONS[self._selected]
 
-    def render_if_dirty(self, *_: Any) -> None:
-        """MLX loop-hook: redraw only when the selection changed."""
-        if not self._dirty:
-            return
-        self._draw_background()
+    def _render(self) -> None:
+        """Redraw the background and buttons, then the labels."""
+        self._window.clear(0xFF000000)
         self._draw_buttons()
         self._window.present()
         self._draw_labels()
-        self._dirty = False
-
-    def _draw_background(self) -> None:
-        """Fill the off-screen buffer with a solid background.
-
-        ``fill_rect`` writes into the image buffer, which only
-        reaches the screen once :meth:`MlxWindow.present` blits it,
-        so this must run *before* ``present``.
-        """
-        self._window.fill_rect(
-            0, self._window.width - 1,
-            0, self._window.height - 1, 0xFF000000)
 
     def _button_rect(self, index: int) -> tuple[int, int, int, int]:
         """Compute one button's (left, right, top, bottom) pixel bounds.
@@ -136,7 +136,7 @@ class MainMenu:
             self._window.draw_text(x, y, color, text)
 
 
-class InstructionsScreen:
+class InstructionsScreen(Screen):
     """Static help screen: controls, then back to the main menu."""
 
     LINES = (
@@ -153,13 +153,9 @@ class InstructionsScreen:
         Args:
             window: The shared MLX window to draw into.
         """
+        super().__init__()
         self._window = window
-        self._dirty = True
         self.done = False
-
-    def refresh(self) -> None:
-        """Force a redraw next tick (call this when re-entering)."""
-        self._dirty = True
 
     def handle_key(self, *params: Any) -> None:
         """Any of Enter/Escape flags this screen as done.
@@ -170,17 +166,212 @@ class InstructionsScreen:
         if params[0] in (KEY_ENTER, KEY_ESCAPE):
             self.done = True
 
-    def render_if_dirty(self, *_: Any) -> None:
-        """MLX loop-hook: redraw only once, until refreshed again."""
-        if not self._dirty:
-            return
-        self._window.fill_rect(
-            0, self._window.width - 1,
-            0, self._window.height - 1, 0xFF000000)
+    def _render(self) -> None:
+        """Draw the background then each instruction line."""
+        self._window.clear(0xFF000000)
         self._window.present()
         start_y = self._window.height // 2 - len(self.LINES) * 15
         for i, line in enumerate(self.LINES):
             self._window.draw_text(
                 self._window.width // 2 - 150,
                 start_y + i * 30, 0xFFFFFFFF, line)
-        self._dirty = False
+
+
+class HighscoresScreen(Screen):
+    """Read-only top-10 board: rank, name, score, then back to the menu.
+
+    Scores are injected through :meth:`load` rather than the
+    constructor, mirroring ``MazeRenderer.load``/``_EndScreen.set_score``:
+    the screen is built once when the app starts, but its content can
+    be refreshed later (e.g. right after a new result is saved to
+    ``highscores.json`` at game end).
+    """
+
+    TITLE = "Highscores"
+    _EMPTY_MESSAGE = "No scores yet -- be the first!"
+    _LINE_HEIGHT = 30
+
+    def __init__(self, window: MlxWindow) -> None:
+        """Bind this screen to an already-created window.
+
+        Args:
+            window: The shared MLX window to draw into.
+        """
+        super().__init__()
+        self._window = window
+        self._scores: list[tuple[str, int]] = []
+        self.done = False
+
+    def load(self, scores: list[tuple[str, int]]) -> None:
+        """Record the scores to display and mark the view dirty.
+
+        Args:
+            scores: Up to 10 (name, score) pairs, best first --
+                exactly what ``highscores.load_highscores`` returns.
+        """
+        self._scores = scores
+        self.refresh()
+
+    def handle_key(self, *params: Any) -> None:
+        """Any of Enter/Escape flags this screen as done.
+
+        Args:
+            params: MLX hook payload; ``params[0]`` is the keycode.
+        """
+        if params[0] in (KEY_ENTER, KEY_ESCAPE):
+            self.done = True
+
+    def _render(self) -> None:
+        """Draw the title, then one ranked line per score (or a
+        placeholder when the board is empty)."""
+        self._window.clear(0xFF000000)
+        self._window.present()
+        center_x = self._window.width // 2
+        rows = max(len(self._scores), 1)
+        top = self._window.height // 2 - (rows + 2) * self._LINE_HEIGHT // 2
+        _draw_centered(self._window, center_x, top, 0xFFFFFF00, self.TITLE)
+        if not self._scores:
+            _draw_centered(self._window, center_x,
+                           top + self._LINE_HEIGHT * 2,
+                           0xFFFFFFFF, self._EMPTY_MESSAGE)
+        else:
+            for rank, (name, score) in enumerate(self._scores, start=1):
+                line = f"{rank:>2}. {name:<10} {score}"
+                _draw_centered(self._window, center_x,
+                               top + (rank + 1) * self._LINE_HEIGHT,
+                               0xFFFFFFFF, line)
+        _draw_centered(self._window, center_x,
+                       top + (rows + 2) * self._LINE_HEIGHT,
+                       0xFFFFFFFF, "Press Enter to go back")
+
+
+class NameEntryScreen(Screen):
+    """Pseudo input screen: type a name, confirm it with Enter.
+
+    Every keystroke is validated against the same rule the
+    highscore table enforces (``highscores.is_valid_name``), so a
+    name typed here is guaranteed to be acceptable later -- there is
+    only one place, ``highscores.py``, that defines what a valid
+    name is.
+    """
+
+    def __init__(self, window: MlxWindow,
+                 prompt: str = "Enter your name:") -> None:
+        """Bind this screen to an already-created window.
+
+        Args:
+            window: The shared MLX window to draw into.
+            prompt: Line of instructions shown above the input box.
+        """
+        super().__init__()
+        self._window = window
+        self._prompt = prompt
+        self._name = ""
+        self.confirmed: str | None = None
+
+    def handle_key(self, *params: Any) -> None:
+        """React to a key press: type, erase, or confirm the name.
+
+        Args:
+            params: MLX hook payload; ``params[0]`` is the keycode.
+        """
+        keycode = params[0]
+        if keycode == KEY_ENTER:
+            if is_valid_name(self._name):
+                self.confirmed = self._name
+            return
+        if keycode == KEY_BACKSPACE:
+            if self._name:
+                self._name = self._name[:-1]
+                self.refresh()
+            return
+        if 32 <= keycode <= 126:
+            char = chr(keycode)
+            if ((char.isalnum() or char == " ")
+                    and len(self._name) < MAX_NAME_LENGTH):
+                self._name += char
+                self.refresh()
+
+    def _render(self) -> None:
+        """Draw the prompt, then the name typed so far with a cursor."""
+        self._window.clear(0xFF000000)
+        self._window.present()
+        center_x = self._window.width // 2
+        center_y = self._window.height // 2
+        _draw_centered(self._window, center_x, center_y - 30,
+                       0xFFFFFFFF, self._prompt)
+        _draw_centered(self._window, center_x, center_y + 20,
+                       0xFFFFFF00, self._name + "_")
+
+
+class _EndScreen(Screen):
+    """Shared behavior for the Game Over and Victory screens.
+
+    Both just display the final score and wait for Enter/Escape --
+    what happens next (showing :class:`NameEntryScreen`, going back
+    to the main menu...) is the caller's job, not this screen's. This
+    mirrors ``InstructionsScreen``'s ``done`` flag: a screen only
+    reports "the player is finished looking at me", never how to
+    transition away.
+    """
+
+    TITLE = ""
+    MESSAGE = ""
+
+    def __init__(self, window: MlxWindow) -> None:
+        """Bind this screen to an already-created window.
+
+        Args:
+            window: The shared MLX window to draw into.
+        """
+        super().__init__()
+        self._window = window
+        self._score = 0
+        self.done = False
+
+    def set_score(self, score: int) -> None:
+        """Record the final score to show and mark the view dirty.
+
+        Args:
+            score: The player's final score for this run.
+        """
+        self._score = score
+        self.refresh()
+
+    def handle_key(self, *params: Any) -> None:
+        """Any of Enter/Escape flags this screen as done.
+
+        Args:
+            params: MLX hook payload; ``params[0]`` is the keycode.
+        """
+        if params[0] in (KEY_ENTER, KEY_ESCAPE):
+            self.done = True
+
+    def _render(self) -> None:
+        """Draw the title, the optional message, and the final score."""
+        self._window.clear(0xFF000000)
+        self._window.present()
+        center_x = self._window.width // 2
+        center_y = self._window.height // 2
+        _draw_centered(self._window, center_x, center_y - 60,
+                       0xFFFFFFFF, self.TITLE)
+        if self.MESSAGE:
+            _draw_centered(self._window, center_x, center_y - 20,
+                           0xFFFFFF00, self.MESSAGE)
+        _draw_centered(self._window, center_x, center_y + 20,
+                       0xFFFFFFFF, f"Final score: {self._score}")
+        _draw_centered(self._window, center_x, center_y + 60,
+                       0xFFFFFFFF, "Press Enter to continue")
+
+
+class GameOverScreen(_EndScreen):
+    """Shown when the player loses their last life (subject VI.8)."""
+
+    TITLE = "Game Over"
+
+
+class VictoryScreen(_EndScreen):
+    """Shown when the player clears every level (subject VI.8)."""
+
+    TITLE = "Victory!"
+    MESSAGE = "Congratulations, you cleared every level!"
