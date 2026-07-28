@@ -15,7 +15,8 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          [x] commit pyproject.toml + uv.lock (reproducible env for both
              teammates and for the peer review)
          [x] .venv/ created by uv -> goes in .gitignore
-         [ ] document the uv workflow in README Instructions (-> task 13)
+         [x] document the uv workflow in README Instructions
+             (done 2026-07-28 with the README pass, incl. pip fallback)
 [x] 0.3  Declare dependencies via uv add: pygame, and dev group:
          flake8, mypy, pytest; add mazegenerator from the provided .whl
          (path/local dependency — verify `uv sync` reinstalls it cleanly
@@ -444,34 +445,50 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 12. PROJECT MANAGEMENT (project-management/)                           owner: both
 --------------------------------------------------------------------------------
-[ ] 12.1  Timeline: Gantt or Kanban (set up early, keep it alive)
-[ ] 12.2  Progress tracking vs plan (update regularly, keep the deltas)
-[ ] 12.3  Project analysis & technical choices document
-[ ] 12.4  Risk analysis + mitigation (e.g., mazegenerator quirks, config
+          NOTE 2026-07-28: 6 documents written (AI-drafted from
+          TODO.txt/git history, to be team-reviewed): timeline.md,
+          technical-choices.md, risk-analysis.md,
+          team-organization.md, acceptance-test-plan.md,
+          blocking-points.md
+[x] 12.1  Timeline: Gantt or Kanban (set up early, keep it alive)
+          (timeline.md: milestone plan + dated actuals; the live
+          Kanban is TODO.txt itself)
+[~] 12.2  Progress tracking vs plan (update regularly, keep the deltas)
+          (status table in timeline.md — must be refreshed until
+          submission)
+[x] 12.3  Project analysis & technical choices document
+[x] 12.4  Risk analysis + mitigation (e.g., mazegenerator quirks, config
           swap at defense, pygame packaging, uv missing on the review
           machine -> pip fallback)
-[ ] 12.5  Team organization: who did what, how decisions were made,
+[x] 12.5  Team organization: who did what, how decisions were made,
           how issues were handled (2-person split)
-[ ] 12.6  Acceptance test plan: features tested, bugs found/fixed
-[ ] 12.7  Summary of blocking points / conflicts
+[~] 12.6  Acceptance test plan: features tested, bugs found/fixed
+          (written; the manual Linux checklist must be RUN before
+          the defense and after packaging)
+[x] 12.7  Summary of blocking points / conflicts
 
 --------------------------------------------------------------------------------
 13. README.md (English, at repo root)                                  owner: Sloubiat
 --------------------------------------------------------------------------------
-[ ] 13.1  First line, in italics: "This project has been created as part
+          NOTE 2026-07-28: full README.md drafted (AI, from TODO/
+          decisions) and checked against subject ch. IX. Sloubiat
+          (owner) must review + fill his AI-usage part; 2 TODO
+          markers left inside (key map task 1, cheat keys 10.6).
+[x] 13.1  First line, in italics: "This project has been created as part
           of the 42 curriculum by <login1>, <login2>."
-[ ] 13.2  Description section (goal + brief overview)
-[ ] 13.3  Instructions section (install, run, controls, Makefile targets)
-[ ] 13.4  Resources section: references + HOW AI WAS USED (which tasks,
+[x] 13.2  Description section (goal + brief overview)
+[~] 13.3  Instructions section (install, run, controls, Makefile targets)
+          (done except final key map — waits on task 1 wiring)
+[~] 13.4  Resources section: references + HOW AI WAS USED (which tasks,
           which parts) — mandatory per subject ch. II/IX
-[ ] 13.5  Configuration section: every key, type, default, clamping rules
-[ ] 13.6  Highscore section: how it works + why this storage choice
-[ ] 13.7  Maze Generation section: how the A-Maze-ing package is used
+[x] 13.5  Configuration section: every key, type, default, clamping rules
+[x] 13.6  Highscore section: how it works + why this storage choice
+[x] 13.7  Maze Generation section: how the A-Maze-ing package is used
           (real API, seed policy, error handling)
-[ ] 13.8  Implementation section: technical summary
-[ ] 13.9  General Software Architecture section: modules, classes,
+[x] 13.8  Implementation section: technical summary
+[x] 13.9  General Software Architecture section: modules, classes,
           relationships (small diagram)
-[ ] 13.10 Project Management section: overview + link to
+[x] 13.10 Project Management section: overview + link to
           project-management/
 
 --------------------------------------------------------------------------------

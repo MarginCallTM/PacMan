@@ -2,7 +2,8 @@
 # All targets go through uv (https://docs.astral.sh/uv/).
 # No uv on the review machine? Fallback:
 #   python3 -m venv .venv && . .venv/bin/activate
-#   pip install pygame flake8 mypy pytest ./mazegenerator-2.0.2-py3-none-any.whl
+#   pip install numpy flake8 mypy pytest \
+#       ./mazegenerator-2.0.2-py3-none-any.whl ./mlx-2.2-py3-none-any.whl
 
 CONFIG ?= config.json
 
