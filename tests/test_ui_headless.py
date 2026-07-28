@@ -2,12 +2,13 @@
 
 The MLX C library cannot load on macOS (Linux-only .so), and tests
 must never require a display anyway. So ``MlxWindow.__init__`` is
-bypassed and a plain Python buffer is injected in place of the MLX
-image: ``fill_rect`` and ``MazeRenderer._draw`` are pure index
-arithmetic, testable on any machine by reading pixels back.
+bypassed and a plain numpy buffer is injected in place of the
+zero-copy view over the MLX image: ``fill_rect``/``fill_disc`` and
+``MazeRenderer._draw`` are pure array writes, testable on any
+machine by reading pixels back.
 """
 
-from array import array
+import numpy as np
 
 from pacman.maze_loader import NORTH, SOLID, Maze, generate_maze
 from pacman.ui import renderer
@@ -19,7 +20,7 @@ def make_headless_window(width: int, height: int) -> MlxWindow:
     window = MlxWindow.__new__(MlxWindow)
     window.width = width
     window.height = height
-    window._addr = memoryview(array("I", [0] * (width * height)))
+    window._pixels = np.zeros((height, width), dtype=np.uint32)
     window._stride = width
     window._window = None
     return window
@@ -27,15 +28,20 @@ def make_headless_window(width: int, height: int) -> MlxWindow:
 
 def pixel(window: MlxWindow, x: int, y: int) -> int:
     """Read one pixel back from the fake buffer."""
-    return int(window._addr[y * window._stride + x])
+    return int(window._pixels[y, x])
 
 
 def draw_seed42() -> tuple[MlxWindow, renderer.MazeRenderer, Maze]:
-    """Render the reproducible 15x10 maze into a fake buffer."""
+    """Render the reproducible 15x10 maze into a fake buffer.
+
+    Mirrors ``MazeRenderer._render`` without the MLX-only present():
+    clear the buffer, then rasterize the maze.
+    """
     window = make_headless_window(400, 400)
     maze = generate_maze(15, 10, seed=42)
     painter = renderer.MazeRenderer(window)
     painter.load(maze)
+    window.clear(renderer._BACKGROUND_COLOR)
     painter._draw(maze)
     return window, painter, maze
 
@@ -52,9 +58,9 @@ def test_fill_rect_writes_inclusive_bounds() -> None:
 
 
 def test_draw_paints_the_whole_background() -> None:
-    """_draw clears the full buffer: no pixel keeps its old value."""
+    """clear + _draw covers the buffer: no pixel keeps its old value."""
     window, _, _ = draw_seed42()
-    assert all(value != 0 for value in window._addr)
+    assert bool((window._pixels != 0).all())
 
 
 def test_solid_cells_are_blue_blocks() -> None:
@@ -64,9 +70,10 @@ def test_solid_cells_are_blue_blocks() -> None:
               for y in range(maze.height) for x in range(maze.width)
               if maze.grid[y][x] == SOLID]
     assert solids
+    cell = painter._cell_size
     for x, y in solids:
-        px = painter._offset_x + x * painter._cell_w + painter._cell_w // 2
-        py = painter._offset_y + y * painter._cell_h + painter._cell_h // 2
+        px = painter._offset_x + x * cell + cell // 2
+        py = painter._offset_y + y * cell + cell // 2
         assert pixel(window, px, py) == renderer._SOLID_COLOR
 
 
@@ -77,9 +84,9 @@ def test_north_walls_are_painted_white() -> None:
     for y in range(maze.height):
         for x in range(maze.width):
             if maze.grid[y][x] != SOLID and maze.grid[y][x] & NORTH:
-                px = (painter._offset_x + x * painter._cell_w
-                      + painter._cell_w // 2)
-                py = painter._offset_y + y * painter._cell_h
+                cell = painter._cell_size
+                px = painter._offset_x + x * cell + cell // 2
+                py = painter._offset_y + y * cell
                 assert pixel(window, px, py) == renderer._WALL_COLOR
                 walls += 1
     assert walls > 0
