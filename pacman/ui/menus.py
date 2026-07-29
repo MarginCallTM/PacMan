@@ -28,10 +28,17 @@ def _draw_centered(window: MlxWindow, center_x: int, y: int, color: int,
     window.draw_text(x, y, color, text)
 
 
-class MainMenu(Screen):
-    """Main menu: Start Game / View Highscores / Instructions / Exit."""
+class _OptionMenu(Screen):
+    """Shared behavior for screens that are just a vertical button list.
 
-    OPTIONS = ("Start Game", "View Highscores", "Instructions", "Exit")
+    ``MainMenu`` and ``PauseScreen`` only differ in their ``OPTIONS``
+    tuple and in what "confirming" an option means to their caller;
+    the selection cursor, button layout and label drawing are
+    otherwise identical, so this Template Method base (same pattern
+    as :class:`Screen` itself) holds that shared code once.
+    """
+
+    OPTIONS: tuple[str, ...] = ()
 
     _BUTTON_BORDER = 0xFFFFFFFF  # white border, unselected
     _BUTTON_BORDER_SELECTED = 0xFFFFFF00  # yellow border, selected
@@ -134,6 +141,24 @@ class MainMenu(Screen):
             x = (left + right) // 2 - text_w // 2
             y = (top + bottom) // 2 + 5
             self._window.draw_text(x, y, color, text)
+
+
+class MainMenu(_OptionMenu):
+    """Main menu: Start Game / View Highscores / Instructions / Exit."""
+
+    OPTIONS = ("Start Game", "View Highscores", "Instructions", "Exit")
+
+
+class PauseScreen(_OptionMenu):
+    """Pause menu: Resume / Return to Main Menu (subject VI.8).
+
+    Reached from PLAYING and nowhere else; what each option means
+    (unpausing the engine, abandoning the game to the main menu) is
+    the caller's job, exactly like ``_EndScreen``'s ``done`` flag only
+    reports "the player picked something", never how to act on it.
+    """
+
+    OPTIONS = ("Resume", "Return to Main Menu")
 
 
 class InstructionsScreen(Screen):
@@ -268,6 +293,17 @@ class NameEntryScreen(Screen):
         self._prompt = prompt
         self._name = ""
         self.confirmed: str | None = None
+
+    def reset(self) -> None:
+        """Clear any previously typed name and mark the view dirty.
+
+        The same instance is reused every time a game ends, so
+        without this call a new name would start pre-filled with
+        whatever was typed (and confirmed) last time.
+        """
+        self._name = ""
+        self.confirmed = None
+        self.refresh()
 
     def handle_key(self, *params: Any) -> None:
         """React to a key press: type, erase, or confirm the name.

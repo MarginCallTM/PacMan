@@ -106,6 +106,41 @@ class MlxWindow:
         mask = (x_indices - cx) ** 2 + (y_indices - cy) ** 2 <= radius ** 2
         self._pixels[y_from:y_to, x_from:x_to][mask] = color
 
+    def fill_wedge(self, cx: int, cy: int, radius: int, start_deg: float,
+                   end_deg: float, color: int) -> None:
+        """Fill a pie-slice (wedge) of a circle in the off-screen buffer.
+
+        Same MLX-equivalence reasoning as :meth:`fill_disc`: MLX has no
+        wedge-fill primitive either, so every pixel is still tested by
+        hand -- distance from the center AND angle this time -- just
+        vectorized with numpy instead of a nested Python loop. Angles
+        are in degrees, measured clockwise from the positive x-axis
+        (screen coordinates: y grows downward), and the slice always
+        sweeps from ``start_deg`` to ``end_deg`` going clockwise.
+
+        Args:
+            cx: Center x, in pixels.
+            cy: Center y, in pixels.
+            radius: Circle radius, in pixels.
+            start_deg: Starting angle of the slice, in degrees.
+            end_deg: Ending angle of the slice, in degrees.
+            color: 0xAARRGGBB pixel value.
+        """
+        y_from, y_to = cy - radius, cy + radius + 1
+        x_from, x_to = cx - radius, cx + radius + 1
+        y_indices, x_indices = np.ogrid[y_from:y_to, x_from:x_to]
+        dx = x_indices - cx
+        dy = y_indices - cy
+        in_circle = dx ** 2 + dy ** 2 <= radius ** 2
+        angles = np.degrees(np.arctan2(dy, dx)) % 360
+        start, end = start_deg % 360, end_deg % 360
+        if start <= end:
+            in_slice = (angles >= start) & (angles <= end)
+        else:
+            in_slice = (angles >= start) | (angles <= end)
+        mask = in_circle & in_slice
+        self._pixels[y_from:y_to, x_from:x_to][mask] = color
+
     def draw_text(self, x: int, y: int, color: int, text: str) -> None:
         """Draw a text string (thin wrapper over ``mlx_string_put``).
 

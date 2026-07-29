@@ -72,6 +72,7 @@ class Engine:
         self.running = True
         self._last_time = time.monotonic()
         self._accumulator = 0.0
+        self.ticks_elapsed = 0
         self._rng = random.Random(config.seed)
         self._flee = FleeStrategy()
         self.cheats = Cheats()
@@ -117,6 +118,21 @@ class Engine:
             self._accumulator -= ticks * tick_duration
         for _ in range(ticks):
             self._tick()
+
+    def tick_progress(self) -> float:
+        """Return how far we are toward the next simulation tick.
+
+        Purely informational: the simulation never reads this itself,
+        it only lets the UI interpolate an entity's on-screen position
+        between its last cell and its next one instead of jumping,
+        since ticks only run ``TICKS_PER_SECOND`` times a second while
+        the display refreshes much faster.
+
+        Returns:
+            A value in [0, 1): 0 right after a tick just ran, growing
+            toward 1 as real time passes until the next one fires.
+        """
+        return self._accumulator * TICKS_PER_SECOND
 
     def turn(self, direction: int) -> None:
         """Buffer a keyboard direction for the player.
@@ -213,6 +229,7 @@ class Engine:
         """
         if self.level is None or self.machine.state is not GameState.PLAYING:
             return
+        self.ticks_elapsed += 1  # UI-only: lets it detect a tick just ran
         level = self.level
         level.tick()
         if level.timed_out():
