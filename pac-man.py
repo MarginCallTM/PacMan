@@ -2,7 +2,8 @@ import sys
 from typing import Any, Callable
 
 from pacman.config import ConfigError, GameConfig, load_config
-from pacman.game.engine import TICKS_PER_SECOND, Engine
+from pacman.game.engine import (FRIGHTENED_MOVE_PERIOD, PLAYER_MOVE_PERIOD,
+                                TICKS_PER_SECOND, Engine)
 from pacman.game.states import GameState
 from pacman.highscores import load_highscores
 from pacman.maze_loader import EAST, NORTH, SOUTH, WEST
@@ -90,7 +91,10 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
         assert engine.level is not None
         maze_renderer.load(engine.level.maze)
         maze_renderer.load_pellets(engine.level.pellets)
-        maze_renderer.load_entities(engine.level.player, engine.level.ghosts)
+        maze_renderer.load_entities(
+            engine.level.player, engine.level.ghosts,
+            player_pace=PLAYER_MOVE_PERIOD,
+            ghost_pace=FRIGHTENED_MOVE_PERIOD)
 
     def handle_menu_key(*params: Any) -> None:
         nonlocal last_level_number

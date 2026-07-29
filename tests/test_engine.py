@@ -9,8 +9,9 @@ from pacman.config import GameConfig
 from pacman.entities.ghost import GhostState
 from pacman.entities.pellets import Pellets
 from pacman.game.engine import (
-    DEATH_PAUSE_SECONDS, FRIGHTENED_MOVE_PERIOD, GHOST_REST_PERIOD,
-    MAX_TICKS_PER_UPDATE, TICKS_PER_SECOND, Cheats, Engine, to_ticks)
+    CHASE_MOVE_PERIOD, DEATH_PAUSE_SECONDS, FRIGHTENED_MOVE_PERIOD,
+    MAX_TICKS_PER_UPDATE, PLAYER_MOVE_PERIOD, TICKS_PER_SECOND, Cheats,
+    Engine, to_ticks)
 from pacman.game.level import Level
 from pacman.game.states import GameState
 from pacman.highscores import load_highscores
@@ -55,6 +56,12 @@ def playing_level(eng: Engine) -> Level:
     return eng.level
 
 
+def tick_one_move(eng: Engine) -> None:
+    """Run exactly enough ticks for one player move to land."""
+    for _ in range(PLAYER_MOVE_PERIOD):
+        eng._tick()
+
+
 def test_to_ticks_rounds_and_floors_at_one() -> None:
     """Seconds convert at TICKS_PER_SECOND, tiny values still tick."""
     assert to_ticks(1.0) == TICKS_PER_SECOND
@@ -88,7 +95,7 @@ def test_pause_drains_clock_without_ticking(
     engine.update()
     before = playing_level(engine).ticks_left
     engine.machine.transition_to(GameState.PLAYING)
-    clock.advance(1.0 / TICKS_PER_SECOND)
+    clock.advance(1.5 / TICKS_PER_SECOND)
     engine.update()
     assert before - playing_level(engine).ticks_left == 1
 
@@ -98,9 +105,9 @@ def test_eating_pacgum_scores(engine: Engine) -> None:
     level = playing_level(engine)
     here = (level.player.x, level.player.y)
     level.pellets = Pellets(pacgums={here, (0, 0)}, super_pacgums=set())
-    engine._tick()
+    tick_one_move(engine)
     assert engine.score == engine.config.points_per_pacgum
-    engine._tick()
+    tick_one_move(engine)
     assert engine.score == engine.config.points_per_pacgum
 
 
@@ -109,7 +116,7 @@ def test_eating_super_pacgum_scores(engine: Engine) -> None:
     level = playing_level(engine)
     here = (level.player.x, level.player.y)
     level.pellets = Pellets(pacgums={(0, 0)}, super_pacgums={here})
-    engine._tick()
+    tick_one_move(engine)
     assert engine.score == engine.config.points_per_super_pacgum
 
 
@@ -117,7 +124,7 @@ def test_empty_cell_scores_nothing(engine: Engine) -> None:
     """Ticking on an empty cell leaves the score untouched."""
     level = playing_level(engine)
     level.pellets = Pellets(pacgums={(0, 0)}, super_pacgums=set())
-    engine._tick()
+    tick_one_move(engine)
     assert engine.score == 0
 
 
@@ -127,7 +134,7 @@ def test_level_completion_carries_score_and_lives(engine: Engine) -> None:
     level.player.lives = 2
     here = (level.player.x, level.player.y)
     level.pellets = Pellets(pacgums={here}, super_pacgums=set())
-    engine._tick()
+    tick_one_move(engine)
     after = playing_level(engine)
     assert after.number == 2
     assert after.player.lives == 2
@@ -141,7 +148,7 @@ def test_last_level_completion_wins(engine: Engine) -> None:
     level.number = len(engine.config.levels)
     here = (level.player.x, level.player.y)
     level.pellets = Pellets(pacgums={here}, super_pacgums=set())
-    engine._tick()
+    tick_one_move(engine)
     assert engine.machine.state is GameState.VICTORY
 
 
@@ -160,32 +167,32 @@ def test_super_pacgum_frightens_all_ghosts(engine: Engine) -> None:
     level = playing_level(engine)
     here = (level.player.x, level.player.y)
     level.pellets = Pellets(pacgums={(0, 0)}, super_pacgums={here})
-    engine._tick()
+    tick_one_move(engine)
     for ghost in level.ghosts:
         assert ghost.state is GhostState.FRIGHTENED
 
 
-def test_chase_ghosts_rest_one_tick_in_four(engine: Engine) -> None:
-    """A CHASE ghost moves every tick except each GHOST_REST_PERIOD-th."""
+def test_chase_ghosts_move_on_their_period(engine: Engine) -> None:
+    """A CHASE ghost moves exactly on every CHASE_MOVE_PERIOD-th tick."""
     ghost = playing_level(engine).ghosts[0]
     moved = []
-    for _ in range(GHOST_REST_PERIOD):
+    for _ in range(CHASE_MOVE_PERIOD):
         before = (ghost.x, ghost.y)
         engine._tick()
         moved.append((ghost.x, ghost.y) != before)
-    assert moved == [True, True, True, False]
+    assert moved == [False] * (CHASE_MOVE_PERIOD - 1) + [True]
 
 
-def test_frightened_ghosts_move_one_tick_in_two(engine: Engine) -> None:
-    """A FRIGHTENED ghost only moves on even simulation ticks."""
+def test_frightened_ghosts_move_on_their_period(engine: Engine) -> None:
+    """A FRIGHTENED ghost moves once per FRIGHTENED_MOVE_PERIOD ticks."""
     ghost = playing_level(engine).ghosts[0]
     ghost.frighten(100)
     moved = []
-    for _ in range(2 * FRIGHTENED_MOVE_PERIOD):
+    for _ in range(FRIGHTENED_MOVE_PERIOD):
         before = (ghost.x, ghost.y)
         engine._tick()
         moved.append((ghost.x, ghost.y) != before)
-    assert moved == [False, True, False, True]
+    assert moved == [False] * (FRIGHTENED_MOVE_PERIOD - 1) + [True]
 
 
 def test_chase_ghost_takes_a_life_and_resets_the_round(
@@ -318,14 +325,15 @@ def test_cheat_freeze_stops_ghosts_but_not_the_player(
     level = playing_level(engine)
     start = [(g.x, g.y) for g in level.ghosts]
     before = level.ticks_left
-    engine._tick()
+    for _ in range(CHASE_MOVE_PERIOD):
+        engine._tick()
     assert [(g.x, g.y) for g in level.ghosts] == start
-    assert level.ticks_left == before - 1
+    assert level.ticks_left == before - CHASE_MOVE_PERIOD
 
 
 def test_cheat_speed_boost_doubles_player_steps(
         engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Boost makes the player step twice per tick, once when off."""
+    """Boost makes the player step twice per move, once when off."""
     level = playing_level(engine)
     calls: list[int] = []
 
@@ -335,10 +343,10 @@ def test_cheat_speed_boost_doubles_player_steps(
 
     monkeypatch.setattr(level.player, "step", fake_step)
     engine.cheat_toggle_speed_boost()
-    engine._tick()
+    tick_one_move(engine)
     assert len(calls) == 2
     engine.cheat_toggle_speed_boost()
-    engine._tick()
+    tick_one_move(engine)
     assert len(calls) == 3
 
 

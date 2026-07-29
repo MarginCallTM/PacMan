@@ -45,33 +45,32 @@ _HUD_WARNING_COLOR = 0xFFFF4040  # remaining time, once it is running low
 _HUD_WARNING_SECONDS = 10
 _MARGIN = 50  # breathing room kept around the maze on every side
 _HUD_HEIGHT = 100  # space reserved at the bottom of the window for the HUD
-# Slowest believable pace for a slide, in ticks per move: throttled
-# ghosts move at worst every 2nd tick. A longer measured interval
-# means the entity was parked (wall, freeze cheat, rest), not pacing
-# -- its next move must restart at full speed, not in slow motion.
-_GLIDE_MAX_GAP = 2
 
 
 @dataclass
 class _Glide:
     """Tracks one entity's on-screen slide toward its current cell.
 
-    The simulation only ever occupies whole cells, a few times a
-    second -- and throttled ghosts do not even move on every tick.
-    Animating every move over exactly one tick would freeze such a
-    ghost on its rest ticks (a visible stutter), so each slide is
-    spread over the entity's *observed pace*: the number of ticks it
-    actually waited between its last two moves (1 for the player, 2
-    for a frightened ghost). And because a new move can land before
-    the previous slide finished, every slide starts from the exact
-    fractional position currently drawn -- the sprite's path is
-    continuous by construction, never a jump.
+    The simulation only ever occupies whole cells, and each entity
+    only moves on the ticks of its own movement period. Animating
+    every move over exactly one tick would freeze the sprite between
+    two moves (a visible stutter), so each slide is spread over the
+    entity's *observed pace*: the number of ticks it actually waited
+    between its last two moves. And because a new move can land
+    before the previous slide finished, every slide starts from the
+    exact fractional position currently drawn -- the sprite's path
+    is continuous by construction, never a jump.
 
     Attributes:
         prev_x: Fractional column the current slide started from.
         prev_y: Fractional row the current slide started from.
         x: Column the entity currently occupies (slide target).
         y: Row the entity currently occupies (slide target).
+        max_gap: Slowest believable pace for THIS entity, in ticks
+            per move (its longest movement period). A measured
+            interval above it means the entity was parked (wall,
+            freeze cheat), not pacing: the next move must restart
+            at full speed, not in slow motion.
         gap: Ticks the current slide takes to reach its target.
         age: Whole ticks elapsed since the current slide started.
     """
@@ -80,6 +79,7 @@ class _Glide:
     prev_y: float
     x: int
     y: int
+    max_gap: int = 1
     gap: int = 1
     age: int = 0
 
@@ -99,7 +99,7 @@ class _Glide:
           gliding across the maze would look broken.
         - A one-cell move: start a new slide from the position drawn
           right now, spread over the interval since the previous move
-          -- unless that interval exceeds _GLIDE_MAX_GAP, meaning the
+          -- unless that interval exceeds ``max_gap``, meaning the
           entity was parked, in which case full speed again.
 
         Args:
@@ -115,7 +115,7 @@ class _Glide:
         else:
             self.age += 1
             self.prev_x, self.prev_y = self.at(0.0)
-            self.gap = self.age if self.age <= _GLIDE_MAX_GAP else 1
+            self.gap = self.age if self.age <= self.max_gap else 1
             self.age = 0
         self.x, self.y = x, y
 
@@ -189,7 +189,8 @@ class MazeRenderer(Screen):
         self._pellets = pellets
         self.refresh()
 
-    def load_entities(self, player: Player, ghosts: list[Ghost]) -> None:
+    def load_entities(self, player: Player, ghosts: list[Ghost],
+                      player_pace: int = 1, ghost_pace: int = 1) -> None:
         """Attach the level's player and ghosts and mark the view dirty.
 
         Both objects are mutated in place by the engine every tick, so
@@ -198,14 +199,23 @@ class MazeRenderer(Screen):
         where the game is actually running, so the new positions get
         drawn.
 
+        The paces come from the caller (the composition root, which
+        knows the engine's movement periods) so this module stays
+        engine-agnostic: they bound how slow a believable slide can
+        be for each entity kind (see ``_Glide.max_gap``).
+
         Args:
             player: The current level's player.
             ghosts: The current level's ghosts.
+            player_pace: The player's movement period, in ticks.
+            ghost_pace: The slowest ghost movement period, in ticks.
         """
         self._player = player
         self._ghosts = ghosts
-        self._player_glide = _Glide(player.x, player.y, player.x, player.y)
-        self._ghost_glides = [_Glide(g.x, g.y, g.x, g.y) for g in ghosts]
+        self._player_glide = _Glide(player.x, player.y, player.x, player.y,
+                                    max_gap=player_pace)
+        self._ghost_glides = [_Glide(g.x, g.y, g.x, g.y, max_gap=ghost_pace)
+                              for g in ghosts]
         self.refresh()
 
     def sync_tick(self, ticks_elapsed: int) -> None:

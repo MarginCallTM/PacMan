@@ -79,7 +79,7 @@ def test_solid_cells_are_blue_blocks() -> None:
 
 def test_glide_spreads_over_observed_pace() -> None:
     """A move landing after a rest tick slides over 2 ticks, not 1."""
-    glide = renderer._Glide(0.0, 0.0, 0, 0)
+    glide = renderer._Glide(0.0, 0.0, 0, 0, max_gap=2)
     glide.advance(0, 0)
     glide.advance(1, 0)
     assert glide.at(0.0) == (0.0, 0.0)
@@ -90,7 +90,7 @@ def test_glide_spreads_over_observed_pace() -> None:
 
 def test_glide_new_move_continues_from_drawn_position() -> None:
     """A move landing mid-slide never makes the sprite jump."""
-    glide = renderer._Glide(0.0, 0.0, 0, 0)
+    glide = renderer._Glide(0.0, 0.0, 0, 0, max_gap=2)
     glide.advance(0, 0)
     glide.advance(1, 0)
     glide.advance(2, 0)
@@ -99,8 +99,8 @@ def test_glide_new_move_continues_from_drawn_position() -> None:
 
 
 def test_glide_parked_entity_restarts_at_full_speed() -> None:
-    """A long stand-still is not a pace: the next move is not slowed."""
-    glide = renderer._Glide(0.0, 0.0, 0, 0)
+    """An interval beyond max_gap is a stop, not a pace: no slow-motion."""
+    glide = renderer._Glide(0.0, 0.0, 0, 0, max_gap=2)
     for _ in range(5):
         glide.advance(0, 0)
     glide.advance(1, 0)

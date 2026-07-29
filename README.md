@@ -70,7 +70,7 @@ quickly:
 | Level skip | Instantly win the current level (score/lives carry over) |
 | Ghost freeze | Ghosts stop moving (their state timers freeze too) |
 | Extra life | +1 life |
-| Speed boost | Pac-Man moves 2 cells per tick instead of 1 |
+| Speed boost | Pac-Man moves 2 cells per move instead of 1 |
 
 <!-- TODO(task 10.6): document the activation keys once bound in pac-man.py -->
 
@@ -191,14 +191,15 @@ layer): no other module imports the package.
 ## Implementation
 
 - **Fixed timestep:** MLX has no clock, so timing uses stdlib `time`. The
-  engine converts elapsed real time into ticks (7/s) with a monotonic
-  accumulator; a stall longer than 4 ticks pauses the game instead of
+  engine converts elapsed real time into ticks (21/s) with a monotonic
+  accumulator; a stall longer than 10 ticks pauses the game instead of
   fast-forwarding it. Entities count time in ticks, never seconds.
-- **Simulation order per tick:** timer → player step (buffered turns:
-  the last requested direction is taken as soon as it becomes legal) →
-  pellet consumption → collisions → ghost moves → collisions again. The
-  double collision check prevents player and ghost from swapping cells
-  through each other.
+- **Simulation order per tick:** timer → player step (on its movement
+  period; buffered turns: the last requested direction is taken as soon
+  as it becomes legal) → pellet consumption → collisions → ghost moves
+  (each on its period) → collisions again. Timers and collisions run
+  every tick; the double collision check prevents player and ghost from
+  swapping cells through each other.
 - **Ghost AI:** one BFS distance map from the player per tick, shared by
   all ghosts. Personalities: direct chase (min distance, N/E/S/W
   tie-break) and random-at-intersections (never reverses except in dead
@@ -206,15 +207,19 @@ layer): no other module imports the package.
   greedy — a ghost may trap itself in a dead end, accepted trade-off).
   Eaten ghosts teleport home and respawn after 7 s (no "eyes travel home"
   animation — deliberate simplification).
-- **Ghost speed:** the player moves every tick; chasing ghosts rest one
-  tick in four (75% of his speed) and frightened ghosts move only one
-  tick in two (50%) — close to the arcade ratios, so the player can
-  escape a chaser and catch a fleer. Timed states still tick every
+- **Movement periods:** every entity moves on a constant beat, a whole
+  number of ticks per cell — the player every 3 ticks (7 cells/s),
+  chasing ghosts every 4 (5.25 cells/s, 75% of the player) and
+  frightened ghosts every 6 (3.5 cells/s, 50%), close to the arcade
+  ratios: the player can escape a chaser and catch a fleer. 21 ticks/s
+  is precisely the finest quantum that makes all three speeds whole
+  periods; a *regular* rhythm per entity is what the renderer needs to
+  interpolate perfectly smooth motion. Timed states still tick every
   tick, so their real-time durations are unaffected.
 - **Death pause:** a fatal ghost contact freezes the simulation for
-  0.7 s before the round resets. The display eases up to two ticks
-  behind the simulation, so an instant reset would land while the
-  sprites still looked one cell apart; the pause lets the slides
+  0.7 s before the round resets. The display eases up to one movement
+  period behind the simulation, so an instant reset would land while
+  the sprites still looked one cell apart; the pause lets the slides
   complete and makes the contact visible. A level timeout resets
   instantly instead — there is no contact to show.
 - **Timer expiry:** costs one life, the timer refills, the round resets

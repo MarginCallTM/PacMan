@@ -14,30 +14,31 @@ from pacman.highscores import (
     add_score, is_valid_name, load_highscores, save_highscores)
 from pacman.maze_loader import DELTAS
 
-# Simulation cadence: entities move at most one cell per tick.
-# 7 is a latency/tempo compromise: input-to-screen latency is bounded
-# by ~2 ticks (application at the next tick + the on-screen slide),
-# so a slower cadence directly worsens the controls' perceived lag.
-TICKS_PER_SECOND = 7
-# Ghost pacing, relative to the player (who moves every tick).
-# CHASE ghosts rest one tick out of GHOST_REST_PERIOD (-> 75% of the
-# player's speed, close to the arcade original); FRIGHTENED ghosts
-# move only one tick out of FRIGHTENED_MOVE_PERIOD (-> 50%), so a
-# hunted ghost can actually be caught.
-GHOST_REST_PERIOD = 4
-FRIGHTENED_MOVE_PERIOD = 2
+# Simulation cadence. 21 ticks/s is the finest quantum in which every
+# movement speed below is a WHOLE number of ticks per cell: a regular
+# per-entity rhythm is what lets the renderer glide smoothly (an
+# irregular rhythm cannot be predicted, hence on-screen stutter).
+TICKS_PER_SECOND = 21
+# Movement periods, in ticks per one-cell move. The player covers
+# 7 cells/s; chasing ghosts 75% of that (close to the arcade
+# original); frightened ghosts 50%, so a hunted ghost can actually
+# be caught. Every entity moves on a constant beat.
+PLAYER_MOVE_PERIOD = 3
+CHASE_MOVE_PERIOD = 4
+FRIGHTENED_MOVE_PERIOD = 6
 # Timed effects, in seconds (converted with to_ticks by the engine).
 FRIGHTENED_SECONDS = 7.0
 RESPAWN_SECONDS = 7.0
 # Freeze on a fatal ghost contact, before the round resets: the
-# display deliberately eases up to 2 ticks behind the simulation,
-# so an instant reset would land while the sprites still look one
-# cell apart. The pause lets the on-screen slides complete -- the
-# contact becomes visible -- and it is arcade-authentic drama.
+# display deliberately eases up to one movement period behind the
+# simulation, so an instant reset would land while the sprites still
+# look one cell apart. The pause lets the on-screen slides complete
+# -- the contact becomes visible -- and it is arcade-authentic drama.
 DEATH_PAUSE_SECONDS = 0.7
 # Hard cap per update: an OS freeze must pause the game, not
-# fast-forward it when the window comes back.
-MAX_TICKS_PER_UPDATE = 4
+# fast-forward it when the window comes back (~half a second of
+# catch-up at most, scaled to the tick rate).
+MAX_TICKS_PER_UPDATE = 10
 
 
 def to_ticks(seconds: float) -> int:
@@ -59,7 +60,7 @@ class Cheats:
     Attributes:
         invincible: Ghost contact costs no life.
         frozen: Ghosts stop moving (their timers freeze too).
-        boost: The player moves two cells per tick instead of one.
+        boost: The player moves two cells per move instead of one.
     """
 
     invincible: bool = False
@@ -216,7 +217,7 @@ class Engine:
         self.cheats.frozen = not self.cheats.frozen
 
     def cheat_toggle_speed_boost(self) -> None:
-        """Cheat: toggle 'player moves two cells per tick'."""
+        """Cheat: toggle 'player moves two cells per move'."""
         self.cheats.boost = not self.cheats.boost
 
     def cheat_extra_life(self) -> None:
@@ -237,10 +238,13 @@ class Engine:
     def _tick(self) -> None:
         """Run one fixed simulation step.
 
-        Collisions are checked twice - after the player moves and
-        after the ghosts move - so neither side can walk through the
-        other within one tick. A lost life ends the tick early
-        (round reset); so does leaving PLAYING (game over).
+        Every entity moves only on the ticks of its own period
+        (PLAYER_MOVE_PERIOD for the player; the ghost periods live in
+        _move_ghosts); everything else -- timers, collisions, level
+        completion -- runs every tick. Collisions are checked twice,
+        after the player half and after the ghost half, so neither
+        side can walk through the other. A fatal contact ends the
+        tick early (death pause); so does leaving PLAYING.
         Cheats hook in here: boost doubles the player steps (eating
         between steps, so no pellet is jumped over) and freeze skips
         the whole ghost half of the tick.
@@ -261,10 +265,11 @@ class Engine:
             level.ticks_left = to_ticks(self.config.level_max_time)
             self._lose_life(level)
             return
-        steps = 2 if self.cheats.boost else 1
-        for _ in range(steps):
-            level.player.step(level.maze)
-            self._eat_pellet(level)
+        if self.ticks_elapsed % PLAYER_MOVE_PERIOD == 0:
+            steps = 2 if self.cheats.boost else 1
+            for _ in range(steps):
+                level.player.step(level.maze)
+                self._eat_pellet(level)
         if self._handle_collisions(level):
             return
         if not self.cheats.frozen:
@@ -293,11 +298,12 @@ class Engine:
 
         One BFS distance map from the player is computed per tick and
         shared by all ghosts. Timers (ghost.tick) always run, so timed
-        states keep their real-time duration; movement is throttled:
-        CHASE ghosts rest one tick in GHOST_REST_PERIOD, FRIGHTENED
-        ghosts move only one tick in FRIGHTENED_MOVE_PERIOD, EATEN
-        ghosts wait at home. The player moves every tick, so he is
-        always faster: he can escape a chaser and catch a fleer.
+        states keep their real-time duration; movement follows each
+        state's constant beat: CHASE ghosts step every
+        CHASE_MOVE_PERIOD ticks, FRIGHTENED ghosts every
+        FRIGHTENED_MOVE_PERIOD ticks, EATEN ghosts wait at home. The
+        player's period is the shortest, so he is always faster: he
+        can escape a chaser and catch a fleer.
 
         Args:
             level: The current level, already nil-checked by the caller.
@@ -313,7 +319,7 @@ class Engine:
                     continue
                 strategy: Strategy = self._flee
             else:
-                if self.ticks_elapsed % GHOST_REST_PERIOD == 0:
+                if self.ticks_elapsed % CHASE_MOVE_PERIOD != 0:
                     continue
                 strategy = personality
             direction = strategy.choose_direction(
