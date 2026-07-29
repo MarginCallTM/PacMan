@@ -45,70 +45,94 @@ _HUD_WARNING_COLOR = 0xFFFF4040  # remaining time, once it is running low
 _HUD_WARNING_SECONDS = 10
 _MARGIN = 50  # breathing room kept around the maze on every side
 _HUD_HEIGHT = 100  # space reserved at the bottom of the window for the HUD
+# Slowest believable pace for a slide, in ticks per move: throttled
+# ghosts move at worst every 2nd tick. A longer measured interval
+# means the entity was parked (wall, freeze cheat, rest), not pacing
+# -- its next move must restart at full speed, not in slow motion.
+_GLIDE_MAX_GAP = 2
 
 
 @dataclass
 class _Glide:
-    """Tracks one entity's last two cells, to animate the move between them.
+    """Tracks one entity's on-screen slide toward its current cell.
 
     The simulation only ever occupies whole cells, a few times a
-    second; this is purely a rendering aid so the sprite can be drawn
-    part-way between where it was and where it now is, instead of
-    jumping the instant a tick lands.
+    second -- and throttled ghosts do not even move on every tick.
+    Animating every move over exactly one tick would freeze such a
+    ghost on its rest ticks (a visible stutter), so each slide is
+    spread over the entity's *observed pace*: the number of ticks it
+    actually waited between its last two moves (1 for the player, 2
+    for a frightened ghost). And because a new move can land before
+    the previous slide finished, every slide starts from the exact
+    fractional position currently drawn -- the sprite's path is
+    continuous by construction, never a jump.
 
     Attributes:
-        prev_x: Column the entity occupied before its last move.
-        prev_y: Row the entity occupied before its last move.
-        x: Column the entity currently occupies.
-        y: Row the entity currently occupies.
+        prev_x: Fractional column the current slide started from.
+        prev_y: Fractional row the current slide started from.
+        x: Column the entity currently occupies (slide target).
+        y: Row the entity currently occupies (slide target).
+        gap: Ticks the current slide takes to reach its target.
+        age: Whole ticks elapsed since the current slide started.
     """
 
-    prev_x: int
-    prev_y: int
+    prev_x: float
+    prev_y: float
     x: int
     y: int
+    gap: int = 1
+    age: int = 0
 
     def advance(self, x: int, y: int) -> None:
         """Register the cell reached after one freshly-elapsed tick.
 
-        Must be called exactly once per simulation tick, never more:
-        calling it again mid-glide (before the next tick) with the
-        same, still-unchanged cell would otherwise be indistinguishable
-        from "stayed put for a whole tick" and wrongly cut the glide
-        short. The caller (:meth:`MazeRenderer.sync_tick`) enforces
-        that.
+        Must be called exactly once per simulation tick, never more
+        (the caller, :meth:`MazeRenderer.sync_tick`, enforces that):
+        ``age`` counts ticks, so the measured pace would be wrong
+        otherwise. Three cases:
 
-        Two cases collapse instead of gliding: no move at all (blocked
-        by a wall -- there is nothing to glide toward) and a jump of
-        more than one cell (a teleport: respawn at the center, a ghost
-        sent home or eaten -- gliding across the whole maze for that
-        would look broken).
+        - No move: the slide ages one tick -- it keeps easing toward
+          its target (progress is capped there, so a long stand-still
+          simply rests on the cell).
+        - A jump of more than one cell (a teleport: respawn at the
+          center, a ghost sent home or eaten): snap to the target,
+          gliding across the maze would look broken.
+        - A one-cell move: start a new slide from the position drawn
+          right now, spread over the interval since the previous move
+          -- unless that interval exceeds _GLIDE_MAX_GAP, meaning the
+          entity was parked, in which case full speed again.
 
         Args:
             x: The entity's column after this tick.
             y: The entity's row after this tick.
         """
         if (x, y) == (self.x, self.y):
-            self.prev_x, self.prev_y = x, y
+            self.age += 1
             return
         if abs(x - self.x) + abs(y - self.y) > 1:
-            self.prev_x, self.prev_y = x, y
+            self.prev_x, self.prev_y = float(x), float(y)
+            self.gap, self.age = 1, 0
         else:
-            self.prev_x, self.prev_y = self.x, self.y
+            self.age += 1
+            self.prev_x, self.prev_y = self.at(0.0)
+            self.gap = self.age if self.age <= _GLIDE_MAX_GAP else 1
+            self.age = 0
         self.x, self.y = x, y
 
     def at(self, alpha: float) -> tuple[float, float]:
-        """Interpolate between the previous and current cell.
+        """Interpolate the on-screen position along the current slide.
 
         Args:
-            alpha: Progress toward the next tick, in [0, 1) -- 0 stays
-                on the previous cell, 1 would reach the current one.
+            alpha: Progress toward the next tick, in [0, 1) -- the
+                slide advances by (age + alpha) / gap, capped on its
+                target cell once complete.
 
         Returns:
             Fractional (x, y) cell coordinates to draw at.
         """
-        return (self.prev_x + (self.x - self.prev_x) * alpha,
-                self.prev_y + (self.y - self.prev_y) * alpha)
+        progress = min(1.0, (self.age + alpha) / self.gap)
+        return (self.prev_x + (self.x - self.prev_x) * progress,
+                self.prev_y + (self.y - self.prev_y) * progress)
 
 
 class MazeRenderer(Screen):
@@ -270,6 +294,12 @@ class MazeRenderer(Screen):
         into the off-screen buffer, so calling it before ``present``
         would get wiped out by the buffer blit.
 
+        Everything is packed into two strings instead of one per
+        value: each ``draw_text`` is a synchronous X11 round-trip
+        (profiled at ~2 ms each, with occasional big spikes), and
+        this runs on every frame. The remaining time keeps its own
+        string so it can turn red when running low.
+
         Nothing is drawn before the first :meth:`set_hud`/
         :meth:`load_entities` call (e.g. while the maze has never
         been shown yet).
@@ -282,14 +312,11 @@ class MazeRenderer(Screen):
                       if seconds_left <= _HUD_WARNING_SECONDS
                       else _HUD_TEXT_COLOR)
         self._window.draw_text(
-            20, top + 35, _HUD_TEXT_COLOR, f"Score: {score}")
+            20, top + 35, _HUD_TEXT_COLOR,
+            f"Score: {score}    Lives: {self._player.lives}"
+            f"    Level: {level_number}")
         self._window.draw_text(
-            20, top + 70, _HUD_TEXT_COLOR, f"Lives: {self._player.lives}")
-        self._window.draw_text(
-            self._window.width // 2 - 40, top + 35, _HUD_TEXT_COLOR,
-            f"Level: {level_number}")
-        self._window.draw_text(
-            self._window.width // 2 - 40, top + 70, time_color,
+            self._window.width // 2 - 40, top + 35, time_color,
             f"Time: {seconds_left}s")
 
     def _draw(self, maze: Maze) -> None:

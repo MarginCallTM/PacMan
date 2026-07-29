@@ -9,6 +9,7 @@ from pacman.config import GameConfig
 from pacman.entities.ghost import GhostState
 from pacman.entities.pellets import Pellets
 from pacman.game.engine import (
+    DEATH_PAUSE_SECONDS, FRIGHTENED_MOVE_PERIOD, GHOST_REST_PERIOD,
     MAX_TICKS_PER_UPDATE, TICKS_PER_SECOND, Cheats, Engine, to_ticks)
 from pacman.game.level import Level
 from pacman.game.states import GameState
@@ -63,9 +64,9 @@ def test_to_ticks_rounds_and_floors_at_one() -> None:
 
 def test_update_converts_elapsed_time_to_ticks(
         engine: Engine, clock: FakeClock) -> None:
-    """Half a second at 8 ticks/s runs exactly 4 simulation steps."""
+    """Four tick-durations of real time run exactly 4 simulation steps."""
     before = playing_level(engine).ticks_left
-    clock.advance(0.5)
+    clock.advance(4 / TICKS_PER_SECOND)
     engine.update()
     assert before - playing_level(engine).ticks_left == 4
 
@@ -164,13 +165,27 @@ def test_super_pacgum_frightens_all_ghosts(engine: Engine) -> None:
         assert ghost.state is GhostState.FRIGHTENED
 
 
-def test_chasing_ghosts_move_every_tick(engine: Engine) -> None:
-    """Each tick, every non-eaten ghost leaves its current cell."""
-    level = playing_level(engine)
-    start = [(g.x, g.y) for g in level.ghosts]
-    engine._tick()
-    for ghost, position in zip(level.ghosts, start):
-        assert (ghost.x, ghost.y) != position
+def test_chase_ghosts_rest_one_tick_in_four(engine: Engine) -> None:
+    """A CHASE ghost moves every tick except each GHOST_REST_PERIOD-th."""
+    ghost = playing_level(engine).ghosts[0]
+    moved = []
+    for _ in range(GHOST_REST_PERIOD):
+        before = (ghost.x, ghost.y)
+        engine._tick()
+        moved.append((ghost.x, ghost.y) != before)
+    assert moved == [True, True, True, False]
+
+
+def test_frightened_ghosts_move_one_tick_in_two(engine: Engine) -> None:
+    """A FRIGHTENED ghost only moves on even simulation ticks."""
+    ghost = playing_level(engine).ghosts[0]
+    ghost.frighten(100)
+    moved = []
+    for _ in range(2 * FRIGHTENED_MOVE_PERIOD):
+        before = (ghost.x, ghost.y)
+        engine._tick()
+        moved.append((ghost.x, ghost.y) != before)
+    assert moved == [False, True, False, True]
 
 
 def test_chase_ghost_takes_a_life_and_resets_the_round(
@@ -179,7 +194,8 @@ def test_chase_ghost_takes_a_life_and_resets_the_round(
     level = playing_level(engine)
     ghost = level.ghosts[0]
     ghost.x, ghost.y = level.player.x, level.player.y
-    engine._tick()
+    for _ in range(1 + to_ticks(DEATH_PAUSE_SECONDS)):
+        engine._tick()
     assert level.player.lives == engine.config.lives - 1
     assert (level.player.x, level.player.y) == level.player.spawn
     for ghost in level.ghosts:
@@ -193,7 +209,8 @@ def test_last_life_lost_is_game_over(engine: Engine) -> None:
     level.player.lives = 1
     ghost = level.ghosts[0]
     ghost.x, ghost.y = level.player.x, level.player.y
-    engine._tick()
+    for _ in range(1 + to_ticks(DEATH_PAUSE_SECONDS)):
+        engine._tick()
     assert engine.machine.state is GameState.GAME_OVER
 
 
@@ -208,6 +225,18 @@ def test_player_eats_frightened_ghost(engine: Engine) -> None:
     assert ghost.state is GhostState.EATEN
     assert (ghost.x, ghost.y) == ghost.corner
     assert level.player.lives == engine.config.lives
+
+
+def test_fatal_contact_pauses_before_the_reset(engine: Engine) -> None:
+    """Death lands only after the freeze, never on the contact tick."""
+    level = playing_level(engine)
+    ghost = level.ghosts[0]
+    ghost.x, ghost.y = level.player.x, level.player.y
+    engine._tick()
+    assert level.player.lives == engine.config.lives
+    for _ in range(to_ticks(DEATH_PAUSE_SECONDS)):
+        engine._tick()
+    assert level.player.lives == engine.config.lives - 1
 
 
 def test_timer_expiry_costs_a_life_and_restarts(engine: Engine) -> None:

@@ -191,7 +191,7 @@ layer): no other module imports the package.
 ## Implementation
 
 - **Fixed timestep:** MLX has no clock, so timing uses stdlib `time`. The
-  engine converts elapsed real time into ticks (8/s) with a monotonic
+  engine converts elapsed real time into ticks (7/s) with a monotonic
   accumulator; a stall longer than 4 ticks pauses the game instead of
   fast-forwarding it. Entities count time in ticks, never seconds.
 - **Simulation order per tick:** timer → player step (buffered turns:
@@ -206,7 +206,17 @@ layer): no other module imports the package.
   greedy — a ghost may trap itself in a dead end, accepted trade-off).
   Eaten ghosts teleport home and respawn after 7 s (no "eyes travel home"
   animation — deliberate simplification).
-- **Ghost speed** equals player speed (1 cell/tick).
+- **Ghost speed:** the player moves every tick; chasing ghosts rest one
+  tick in four (75% of his speed) and frightened ghosts move only one
+  tick in two (50%) — close to the arcade ratios, so the player can
+  escape a chaser and catch a fleer. Timed states still tick every
+  tick, so their real-time durations are unaffected.
+- **Death pause:** a fatal ghost contact freezes the simulation for
+  0.7 s before the round resets. The display eases up to two ticks
+  behind the simulation, so an instant reset would land while the
+  sprites still looked one cell apart; the pause lets the slides
+  complete and makes the contact visible. A level timeout resets
+  instantly instead — there is no contact to show.
 - **Timer expiry:** costs one life, the timer refills, the round resets
   (player to center, ghosts to corners). At 0 lives it naturally becomes
   game over.

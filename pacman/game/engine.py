@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from pacman.config import GameConfig
 from pacman.entities.ghost import GhostState
-from pacman.entities.ghost_ai import FleeStrategy, bfs_distances
+from pacman.entities.ghost_ai import FleeStrategy, Strategy, bfs_distances
 from pacman.entities.pellets import PelletType
 from pacman.game.level import Level, build_level
 from pacman.game.states import GameState, StateMachine
@@ -15,10 +15,26 @@ from pacman.highscores import (
 from pacman.maze_loader import DELTAS
 
 # Simulation cadence: entities move at most one cell per tick.
-TICKS_PER_SECOND = 8
+# 7 is a latency/tempo compromise: input-to-screen latency is bounded
+# by ~2 ticks (application at the next tick + the on-screen slide),
+# so a slower cadence directly worsens the controls' perceived lag.
+TICKS_PER_SECOND = 7
+# Ghost pacing, relative to the player (who moves every tick).
+# CHASE ghosts rest one tick out of GHOST_REST_PERIOD (-> 75% of the
+# player's speed, close to the arcade original); FRIGHTENED ghosts
+# move only one tick out of FRIGHTENED_MOVE_PERIOD (-> 50%), so a
+# hunted ghost can actually be caught.
+GHOST_REST_PERIOD = 4
+FRIGHTENED_MOVE_PERIOD = 2
 # Timed effects, in seconds (converted with to_ticks by the engine).
 FRIGHTENED_SECONDS = 7.0
 RESPAWN_SECONDS = 7.0
+# Freeze on a fatal ghost contact, before the round resets: the
+# display deliberately eases up to 2 ticks behind the simulation,
+# so an instant reset would land while the sprites still look one
+# cell apart. The pause lets the on-screen slides complete -- the
+# contact becomes visible -- and it is arcade-authentic drama.
+DEATH_PAUSE_SECONDS = 0.7
 # Hard cap per update: an OS freeze must pause the game, not
 # fast-forward it when the window comes back.
 MAX_TICKS_PER_UPDATE = 4
@@ -72,6 +88,7 @@ class Engine:
         self.running = True
         self._last_time = time.monotonic()
         self._accumulator = 0.0
+        self._death_pause = 0
         self.ticks_elapsed = 0
         self._rng = random.Random(config.seed)
         self._flee = FleeStrategy()
@@ -96,6 +113,7 @@ class Engine:
             to_ticks(self.config.level_max_time))
         self._last_time = time.monotonic()
         self._accumulator = 0.0
+        self._death_pause = 0
 
     def update(self) -> None:
         """Advance the simulation by however much real time passed.
@@ -229,8 +247,13 @@ class Engine:
         """
         if self.level is None or self.machine.state is not GameState.PLAYING:
             return
-        self.ticks_elapsed += 1  # UI-only: lets it detect a tick just ran
+        self.ticks_elapsed += 1  # ghost pacing (modulo) + UI tick detection
         level = self.level
+        if self._death_pause:
+            self._death_pause -= 1
+            if self._death_pause == 0:
+                self._lose_life(level)
+            return
         level.tick()
         if level.timed_out():
             # DECISION (task 8.5): a timeout costs one life and the
@@ -266,12 +289,15 @@ class Engine:
                 ghost.frighten(to_ticks(FRIGHTENED_SECONDS))
 
     def _move_ghosts(self, level: Level) -> None:
-        """Advance ghost timers, then step every active ghost.
+        """Advance ghost timers, then step every ghost due to move.
 
         One BFS distance map from the player is computed per tick and
-        shared by all ghosts. FRIGHTENED ghosts flee (engine-owned
-        FleeStrategy); CHASE ghosts follow their own personality;
-        EATEN ghosts wait at home and do not move.
+        shared by all ghosts. Timers (ghost.tick) always run, so timed
+        states keep their real-time duration; movement is throttled:
+        CHASE ghosts rest one tick in GHOST_REST_PERIOD, FRIGHTENED
+        ghosts move only one tick in FRIGHTENED_MOVE_PERIOD, EATEN
+        ghosts wait at home. The player moves every tick, so he is
+        always faster: he can escape a chaser and catch a fleer.
 
         Args:
             level: The current level, already nil-checked by the caller.
@@ -282,9 +308,14 @@ class Engine:
             ghost.tick()
             if ghost.state is GhostState.EATEN:
                 continue
-            strategy = (self._flee
-                        if ghost.state is GhostState.FRIGHTENED
-                        else personality)
+            if ghost.state is GhostState.FRIGHTENED:
+                if self.ticks_elapsed % FRIGHTENED_MOVE_PERIOD != 0:
+                    continue
+                strategy: Strategy = self._flee
+            else:
+                if self.ticks_elapsed % GHOST_REST_PERIOD == 0:
+                    continue
+                strategy = personality
             direction = strategy.choose_direction(
                 ghost, level.player, level.maze, distances, self._rng)
             if direction:
@@ -296,15 +327,17 @@ class Engine:
         """Resolve every ghost sharing the player's cell.
 
         FRIGHTENED ghost -> eaten: points_per_ghost, sent home for
-        RESPAWN_SECONDS. CHASE ghost -> the player loses a life.
+        RESPAWN_SECONDS. CHASE ghost -> fatal: the death pause is
+        armed; the life itself is taken by _tick once the pause has
+        run out, so the player sees the contact on screen first.
         EATEN ghosts are out of play and harmless.
 
         Args:
             level: The current level, already nil-checked by the caller.
 
         Returns:
-            True when the player lost a life (the tick must stop:
-            the round has been reset).
+            True on a fatal contact (the tick must stop: the round
+            is now suspended in the death pause).
         """
         for ghost in level.ghosts:
             if (ghost.x, ghost.y) != (level.player.x, level.player.y):
@@ -314,7 +347,7 @@ class Engine:
                 ghost.get_eaten(to_ticks(RESPAWN_SECONDS))
             elif (ghost.state is GhostState.CHASE
                     and not self.cheats.invincible):
-                self._lose_life(level)
+                self._death_pause = to_ticks(DEATH_PAUSE_SECONDS)
                 return True
         return False
 
