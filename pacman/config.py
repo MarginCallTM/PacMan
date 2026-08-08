@@ -70,7 +70,7 @@ def strip_comments(text: str) -> str:
 
 def _clamp_int(data: dict[str, object], key: str,
                default: int, low: int, high: int) -> int:
-    """Read an int key; wrong type -> default, out of range -> clamped
+    """Read an int key; missing/wrong type -> default, out of range -> clamped
 
     Args:
         data: Parsed JSON object.
@@ -82,7 +82,11 @@ def _clamp_int(data: dict[str, object], key: str,
     Returns:
         A value guaranteed to be within [low, high].
     """
-    value = data.get(key, default)
+    if key not in data:
+        logger.warning("config: '%s' missing, using default %d",
+                       key, default)
+        return default
+    value = data[key]
     # bool is a subclass of int: reject it explicitly.
     if isinstance(value, bool) or not isinstance(value, int):
         logger.warning("config: '%s' invalid (%r), using %d",
@@ -97,7 +101,7 @@ def _clamp_int(data: dict[str, object], key: str,
 
 
 def _read_filename(data: dict[str, object]) -> str:
-    """Read 'highscore_filename'; any invalid value -> default.
+    """Read 'highscore_filename'; missing/invalid value -> default.
 
     Args:
         data: Parsed JSON object.
@@ -105,7 +109,11 @@ def _read_filename(data: dict[str, object]) -> str:
     Returns:
         A non-empty file name.
     """
-    value = data.get("highscore_filename", DEFAULT_HIGHSCORE_FILENAME)
+    if "highscore_filename" not in data:
+        logger.warning("config: 'highscore_filename' missing, "
+                       "using default '%s'", DEFAULT_HIGHSCORE_FILENAME)
+        return DEFAULT_HIGHSCORE_FILENAME
+    value = data["highscore_filename"]
     if not isinstance(value, str) or not value.strip():
         logger.warning("config: 'highscore_filename' invalid, using '%s'",
                        DEFAULT_HIGHSCORE_FILENAME)

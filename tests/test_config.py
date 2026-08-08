@@ -33,6 +33,16 @@ def test_valid_config(tmp_path: Path) -> None:
     assert config.seed == 7
 
 
+def test_missing_keys_logged(
+        tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """Every missing key logs which default value was used instead."""
+    with caplog.at_level("WARNING"):
+        config = load_config(write(tmp_path, "{}"))
+    assert config == GameConfig()
+    assert "'lives' missing" in caplog.text
+    assert "'highscore_filename' missing" in caplog.text
+
+
 def test_missing_file_raises(tmp_path: Path) -> None:
     """A missing file is a fatal ConfigError, not a traceback."""
     with pytest.raises(ConfigError):
