@@ -10,8 +10,8 @@ from pacman.entities.ghost import GhostState
 from pacman.entities.pellets import Pellets
 from pacman.game.engine import (
     CHASE_MOVE_PERIOD, DEATH_PAUSE_SECONDS, FRIGHTENED_MOVE_PERIOD,
-    MAX_TICKS_PER_UPDATE, PLAYER_MOVE_PERIOD, TICKS_PER_SECOND, Cheats,
-    Engine, to_ticks)
+    LEVEL_TRANSITION_SECONDS, MAX_TICKS_PER_UPDATE, PLAYER_MOVE_PERIOD,
+    TICKS_PER_SECOND, Cheats, Engine, to_ticks)
 from pacman.game.level import Level
 from pacman.game.states import GameState
 from pacman.highscores import load_highscores
@@ -128,13 +128,19 @@ def test_empty_cell_scores_nothing(engine: Engine) -> None:
     assert engine.score == 0
 
 
-def test_level_completion_carries_score_and_lives(engine: Engine) -> None:
-    """Clearing a level keeps score and lives, and loads the next one."""
+def test_level_completion_carries_score_and_lives(
+        engine: Engine, clock: FakeClock) -> None:
+    """Clearing a level shows the banner, then loads the next one
+    keeping score and lives."""
     level = playing_level(engine)
     level.player.lives = 2
     here = (level.player.x, level.player.y)
     level.pellets = Pellets(pacgums={here}, super_pacgums=set())
     tick_one_move(engine)
+    assert engine.machine.state is GameState.LEVEL_TRANSITION
+    assert engine.pending_level_number == 2
+    clock.advance(LEVEL_TRANSITION_SECONDS)
+    engine.update()
     after = playing_level(engine)
     assert after.number == 2
     assert after.player.lives == 2
@@ -356,10 +362,15 @@ def test_cheat_extra_life_adds_one(engine: Engine) -> None:
     assert playing_level(engine).player.lives == engine.config.lives + 1
 
 
-def test_cheat_level_skip_wins_the_level(engine: Engine) -> None:
+def test_cheat_level_skip_wins_the_level(
+        engine: Engine, clock: FakeClock) -> None:
     """Skip advances like a real clear, VICTORY on the last level."""
     engine.score = 70
     engine.cheat_level_skip()
+    assert engine.machine.state is GameState.LEVEL_TRANSITION
+    assert engine.pending_level_number == 2
+    clock.advance(LEVEL_TRANSITION_SECONDS)
+    engine.update()
     assert playing_level(engine).number == 2
     assert engine.score == 70
     playing_level(engine).number = len(engine.config.levels)

@@ -10,6 +10,7 @@ class GameState(Enum):
     HIGHSCORES = auto()
     INSTRUCTIONS = auto()
     PLAYING = auto()
+    LEVEL_TRANSITION = auto()
     PAUSED = auto()
     GAME_OVER = auto()
     VICTORY = auto()
@@ -23,7 +24,9 @@ TRANSITIONS: dict[GameState, frozenset[GameState]] = {
     GameState.HIGHSCORES: frozenset({GameState.MENU}),
     GameState.INSTRUCTIONS: frozenset({GameState.MENU}),
     GameState.PLAYING: frozenset({GameState.PAUSED, GameState.GAME_OVER,
-                                  GameState.VICTORY}),
+                                  GameState.VICTORY,
+                                  GameState.LEVEL_TRANSITION}),
+    GameState.LEVEL_TRANSITION: frozenset({GameState.PLAYING}),
     GameState.PAUSED: frozenset({GameState.PLAYING, GameState.MENU}),
     GameState.GAME_OVER: frozenset({GameState.NAME_ENTRY}),
     GameState.VICTORY: frozenset({GameState.NAME_ENTRY}),

@@ -340,6 +340,43 @@ class NameEntryScreen(Screen):
                        0xFFFFFF00, self._name + "_")
 
 
+class LevelTransitionScreen(Screen):
+    """Brief "Level N" banner shown between two levels.
+
+    Purely informational: the engine times how long it stays up
+    (LEVEL_TRANSITION_SECONDS) and switches back to PLAYING on its
+    own, so this screen reads no key input at all -- unlike every
+    other Screen in this module.
+    """
+
+    def __init__(self, window: MlxWindow) -> None:
+        """Bind this screen to an already-created window.
+
+        Args:
+            window: The shared MLX window to draw into.
+        """
+        super().__init__()
+        self._window = window
+        self._number = 1
+
+    def set_level(self, number: int) -> None:
+        """Record which level is about to start and mark this dirty.
+
+        Args:
+            number: 1-based level number to display.
+        """
+        self._number = number
+        self.refresh()
+
+    def _render(self) -> None:
+        """Draw a black background with the level number centered."""
+        self._window.clear(0xFF000000)
+        self._window.present()
+        _draw_centered(self._window, self._window.width // 2,
+                       self._window.height // 2,
+                       0xFFFFFF00, f"Level {self._number}")
+
+
 class _EndScreen(Screen):
     """Shared behavior for the Game Over and Victory screens.
 

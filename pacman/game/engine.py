@@ -35,6 +35,10 @@ RESPAWN_SECONDS = 7.0
 # look one cell apart. The pause lets the on-screen slides complete
 # -- the contact becomes visible -- and it is arcade-authentic drama.
 DEATH_PAUSE_SECONDS = 0.7
+# Duration of the "Level N" banner between two levels, before the
+# next board is actually built (same timed-pause technique as
+# DEATH_PAUSE_SECONDS, just for a different moment).
+LEVEL_TRANSITION_SECONDS = 2.0
 # Hard cap per update: an OS freeze must pause the game, not
 # fast-forward it when the window comes back (~half a second of
 # catch-up at most, scaled to the tick rate).
@@ -90,6 +94,8 @@ class Engine:
         self._last_time = time.monotonic()
         self._accumulator = 0.0
         self._death_pause = 0
+        self._transition_ticks = 0
+        self._pending_level: tuple[int, int] | None = None
         self.ticks_elapsed = 0
         self._rng = random.Random(config.seed)
         self._flee = FleeStrategy()
@@ -119,11 +125,14 @@ class Engine:
     def update(self) -> None:
         """Advance the simulation by however much real time passed.
 
-        Outside PLAYING the clock is drained but nothing moves, so
-        pausing never accumulates catch-up ticks.
+        Outside PLAYING and LEVEL_TRANSITION the clock is drained but
+        nothing moves, so pausing never accumulates catch-up ticks.
         """
         now = time.monotonic()
         elapsed, self._last_time = now - self._last_time, now
+        if self.machine.state is GameState.LEVEL_TRANSITION:
+            self._run_transition(elapsed)
+            return
         if self.machine.state is not GameState.PLAYING:
             self._accumulator = 0.0
             return
@@ -374,10 +383,14 @@ class Engine:
             self.machine.transition_to(GameState.GAME_OVER)
 
     def _advance_level(self, level: Level) -> None:
-        """Enter the next level, or VICTORY after the last one.
+        """Park in LEVEL_TRANSITION before the next level, or VICTORY.
 
-        The score is deliberately untouched (subject: carries over);
-        lives are read from the outgoing player to carry over too.
+        The next level is not built right away: the engine parks in
+        LEVEL_TRANSITION for LEVEL_TRANSITION_SECONDS first (the
+        "Level N" banner), and _start_pending_level does the actual
+        build once that countdown reaches zero. The score is
+        deliberately untouched (subject: carries over); lives are
+        read from the outgoing player so they carry over too.
 
         Args:
             level: The level that was just completed.
@@ -385,4 +398,46 @@ class Engine:
         if level.number >= len(self.config.levels):
             self.machine.transition_to(GameState.VICTORY)
             return
-        self._load_level(level.number + 1, level.player.lives)
+        self._pending_level = (level.number + 1, level.player.lives)
+        self._transition_ticks = to_ticks(LEVEL_TRANSITION_SECONDS)
+        self.machine.transition_to(GameState.LEVEL_TRANSITION)
+
+    def _start_pending_level(self) -> None:
+        """Build the parked next level and resume PLAYING.
+
+        Called only once the LEVEL_TRANSITION banner has run out.
+        """
+        assert self._pending_level is not None
+        number, lives = self._pending_level
+        self._pending_level = None
+        self._load_level(number, lives)
+        self.machine.transition_to(GameState.PLAYING)
+
+    @property
+    def pending_level_number(self) -> int | None:
+        """Level about to start, while the LEVEL_TRANSITION banner is up.
+
+        Returns:
+            The 1-based level number, or None outside LEVEL_TRANSITION.
+        """
+        return self._pending_level[0] if self._pending_level else None
+
+    def _run_transition(self, elapsed: float) -> None:
+        """Count down the "Level N" banner, then start the next level.
+
+        Ticks are computed by division, like the main branch of
+        update() does: repeated float subtraction would drift and
+        could leave the countdown one tick short of zero.
+
+        Args:
+            elapsed: Real seconds since the previous update() call.
+        """
+        self._accumulator += elapsed
+        tick_duration = 1.0 / TICKS_PER_SECOND
+        ticks = min(int(self._accumulator / tick_duration),
+                    self._transition_ticks)
+        self._accumulator -= ticks * tick_duration
+        self._transition_ticks -= ticks
+        if self._transition_ticks == 0:
+            self._accumulator = 0.0
+            self._start_pending_level()

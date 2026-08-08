@@ -10,8 +10,9 @@ from pacman.maze_loader import EAST, NORTH, SOUTH, WEST
 from pacman.ui.keys import (KEY_A, KEY_D, KEY_DOWN, KEY_LEFT, KEY_P, KEY_Q,
                             KEY_RIGHT, KEY_S, KEY_UP, KEY_W)
 from pacman.ui.menus import (GameOverScreen, HighscoresScreen,
-                             InstructionsScreen, MainMenu, NameEntryScreen,
-                             PauseScreen, VictoryScreen)
+                             InstructionsScreen, LevelTransitionScreen,
+                             MainMenu, NameEntryScreen, PauseScreen,
+                             VictoryScreen)
 from pacman.ui.mlx_window import MlxWindow
 from pacman.ui.renderer import MazeRenderer
 from pacman.ui.screen import Screen
@@ -74,6 +75,7 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
     game_over = GameOverScreen(window)
     victory = VictoryScreen(window)
     pause_screen = PauseScreen(window)
+    level_transition = LevelTransitionScreen(window)
     maze_renderer = MazeRenderer(window)
 
     last_state: GameState | None = None
@@ -133,6 +135,9 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
         elif keycode in _DIRECTION_KEYS:
             engine.turn(_DIRECTION_KEYS[keycode])
 
+    def handle_level_transition_key(*_: Any) -> None:
+        """No input during the "Level N" banner; it times out on its own."""
+
     def handle_paused_key(*params: Any) -> None:
         pause_screen.handle_key(*params)
         if pause_screen.chosen == "Resume":
@@ -167,6 +172,7 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
         GameState.HIGHSCORES: handle_highscores_key,
         GameState.INSTRUCTIONS: handle_instructions_key,
         GameState.PLAYING: handle_playing_key,
+        GameState.LEVEL_TRANSITION: handle_level_transition_key,
         GameState.PAUSED: handle_paused_key,
         GameState.GAME_OVER: handle_game_over_key,
         GameState.VICTORY: handle_victory_key,
@@ -177,6 +183,7 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
         GameState.HIGHSCORES: highscores_screen,
         GameState.INSTRUCTIONS: instructions,
         GameState.PLAYING: maze_renderer,
+        GameState.LEVEL_TRANSITION: level_transition,
         GameState.PAUSED: pause_screen,
         GameState.GAME_OVER: game_over,
         GameState.VICTORY: victory,
@@ -195,6 +202,9 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
             victory.set_score(engine.score)
         elif state is GameState.NAME_ENTRY:
             name_entry.reset()
+        elif state is GameState.LEVEL_TRANSITION:
+            assert engine.pending_level_number is not None
+            level_transition.set_level(engine.pending_level_number)
         else:
             screens[state].refresh()
 
