@@ -9,6 +9,8 @@ without inheriting from this class.
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 from pacman.entities.ghost import Ghost, GhostState
 from pacman.entities.pellets import Pellets
 from pacman.entities.player import Player
@@ -152,6 +154,7 @@ class MazeRenderer(Screen):
         self._ghosts: list[Ghost] | None = None
         self._player_glide: _Glide | None = None
         self._ghost_glides: list[_Glide] | None = None
+        self._background: np.ndarray | None = None
         self._last_ticks_elapsed = 0
         self._alpha = 0.0
         self._hud: tuple[int, int, int] | None = None
@@ -161,6 +164,10 @@ class MazeRenderer(Screen):
 
     def load(self, maze: Maze) -> None:
         """Compute the cell size for ``maze`` and mark the view dirty.
+
+        Also drops the cached wall/pellet background (see
+        :meth:`_rebuild_background`): a new maze means the old
+        snapshot no longer matches what should be on screen.
 
         Args:
             maze: The maze to display starting next frame.
@@ -175,18 +182,21 @@ class MazeRenderer(Screen):
         self._offset_y = (
             (self._window.height - _HUD_HEIGHT
              - self._cell_size * maze.height) // 2)
+        self._background = None
         self.refresh()
 
     def load_pellets(self, pellets: Pellets) -> None:
         """Attach the level's pellet state and mark the view dirty.
 
         Call this again (same object or not) every time a pellet gets
-        eaten, so the next frame stops drawing it.
+        eaten, so the next frame stops drawing it. Also drops the
+        cached background so it gets rebuilt without the eaten dot.
 
         Args:
             pellets: The pacgums/super-pacgums still on the board.
         """
         self._pellets = pellets
+        self._background = None
         self.refresh()
 
     def load_entities(self, player: Player, ghosts: list[Ghost],
@@ -283,18 +293,44 @@ class MazeRenderer(Screen):
             self._window.destroy()
 
     def _render(self) -> None:
-        """Redraw the maze and pellets, then present the buffer.
+        """Composite the cached background with the moving entities.
 
         Nothing to draw yet if :meth:`load` hasn't run: return without
         presenting so the previous screen stays visible until the
-        maze is actually ready.
+        maze is actually ready. The maze walls and pellets almost
+        never change between two frames (see
+        :meth:`_rebuild_background`), so restoring the cached snapshot
+        replaces redrawing hundreds of wall segments and dots by hand
+        on every single frame -- only the player and the ghosts, which
+        do move every frame, are still drawn fresh here.
         """
         if self._maze is None:
             return
-        self._window.clear(_BACKGROUND_COLOR)
-        self._draw(self._maze)
+        if self._background is None:
+            self._rebuild_background()
+        assert self._background is not None
+        self._window.restore(self._background)
+        if self._player is not None:
+            self._draw_player(self._player)
+        if self._ghosts is not None:
+            self._draw_ghosts(self._ghosts)
         self._window.present()
         self._draw_hud()
+
+    def _rebuild_background(self) -> None:
+        """Redraw the maze walls and pellets once, then cache the result.
+
+        Only called when the static part of the scene actually
+        changed -- a new level (:meth:`load`) or a pellet just eaten
+        (:meth:`load_pellets`) -- never once per frame. Every other
+        frame's :meth:`_render` reuses this snapshot instead.
+        """
+        assert self._maze is not None
+        self._window.clear(_BACKGROUND_COLOR)
+        self._draw_walls(self._maze)
+        if self._pellets is not None:
+            self._draw_pellets(self._pellets)
+        self._background = self._window.snapshot()
 
     def _draw_hud(self) -> None:
         """Draw score, lives, level and remaining time along the bottom.
@@ -329,8 +365,8 @@ class MazeRenderer(Screen):
             self._window.width // 2 - 40, top + 35, time_color,
             f"Time: {seconds_left}s")
 
-    def _draw(self, maze: Maze) -> None:
-        """Rasterize every cell of ``maze`` into the off-screen buffer.
+    def _draw_walls(self, maze: Maze) -> None:
+        """Rasterize every wall segment of ``maze`` into the buffer.
 
         Args:
             maze: The maze to rasterize.
@@ -374,12 +410,6 @@ class MazeRenderer(Screen):
                     self._window.fill_rect(
                         real_x, real_x, real_y, real_y + self._cell_size,
                         _WALL_COLOR)
-        if self._pellets is not None:
-            self._draw_pellets(self._pellets)
-        if self._player is not None:
-            self._draw_player(self._player)
-        if self._ghosts is not None:
-            self._draw_ghosts(self._ghosts)
 
     def _draw_player(self, player: Player) -> None:
         """Fill a yellow disc with a mouth wedge open toward its direction.

@@ -94,6 +94,7 @@ class Engine:
         self._last_time = time.monotonic()
         self._accumulator = 0.0
         self._death_pause = 0
+        self._player_cooldown = 0
         self._transition_ticks = 0
         self._pending_level: tuple[int, int] | None = None
         self.ticks_elapsed = 0
@@ -121,6 +122,7 @@ class Engine:
         self._last_time = time.monotonic()
         self._accumulator = 0.0
         self._death_pause = 0
+        self._player_cooldown = 0
 
     def update(self) -> None:
         """Advance the simulation by however much real time passed.
@@ -165,13 +167,22 @@ class Engine:
     def turn(self, direction: int) -> None:
         """Buffer a keyboard direction for the player.
 
-        Called by the UI on key presses; ignored outside gameplay.
+        Called by the UI on key presses; ignored outside gameplay. If
+        the player is currently stopped (blocked, just spawned, or
+        just respawned), the next move is allowed on the very next
+        tick instead of waiting out the rest of the normal movement
+        cadence -- that wait only ever exists to cap the player's
+        speed while he is actually progressing, so it serves no
+        purpose while he isn't moving at all.
 
         Args:
             direction: One of NORTH, EAST, SOUTH, WEST.
         """
         if self.machine.state is GameState.PLAYING and self.level:
-            self.level.player.turn(direction)
+            player = self.level.player
+            player.turn(direction)
+            if not player.moving:
+                self._player_cooldown = 0
 
     def toggle_pause(self) -> None:
         """Flip between PLAYING and PAUSED; ignored on other screens."""
@@ -248,8 +259,10 @@ class Engine:
         """Run one fixed simulation step.
 
         Every entity moves only on the ticks of its own period
-        (PLAYER_MOVE_PERIOD for the player; the ghost periods live in
-        _move_ghosts); everything else -- timers, collisions, level
+        (PLAYER_MOVE_PERIOD ticks apart for the player, tracked by its
+        own _player_cooldown so a fresh key press can shortcut the
+        wait while he is stopped -- see turn(); the ghost periods live
+        in _move_ghosts); everything else -- timers, collisions, level
         completion -- runs every tick. Collisions are checked twice,
         after the player half and after the ghost half, so neither
         side can walk through the other. A fatal contact ends the
@@ -274,11 +287,14 @@ class Engine:
             level.ticks_left = to_ticks(self.config.level_max_time)
             self._lose_life(level)
             return
-        if self.ticks_elapsed % PLAYER_MOVE_PERIOD == 0:
+        if self._player_cooldown == 0:
             steps = 2 if self.cheats.boost else 1
             for _ in range(steps):
                 level.player.step(level.maze)
                 self._eat_pellet(level)
+            self._player_cooldown = PLAYER_MOVE_PERIOD - 1
+        else:
+            self._player_cooldown -= 1
         if self._handle_collisions(level):
             return
         if not self.cheats.frozen:

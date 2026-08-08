@@ -16,6 +16,7 @@ class Player:
             lives: Remaining lives.
             direction: Current motion direction (0 = standing still)
             wanted: Buffered keyboard direction, applied when legal.
+            moving: True if the last step() call actually changed cell.
     """
     x: int
     y: int
@@ -23,6 +24,7 @@ class Player:
     lives: int
     direction: int = 0
     wanted: int = 0
+    moving: bool = False
 
     def turn(self, direction: int) -> None:
         """Record the direction requested by the keyboard
@@ -51,7 +53,9 @@ class Player:
                 dx, dy = DELTAS[direction]
                 self.x, self.y = self.x + dx, self.y + dy
                 self.direction = direction
+                self.moving = True
                 return True
+        self.moving = False
         return False
 
     def lose_life(self) -> None:
@@ -60,6 +64,7 @@ class Player:
         self.x, self.y = self.spawn
         self.direction = 0
         self.wanted = 0
+        self.moving = False
 
     def is_dead(self) -> bool:
         """Return True when no life is left (Game-over condition)"""

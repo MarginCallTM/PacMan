@@ -141,6 +141,28 @@ class MlxWindow:
         mask = in_circle & in_slice
         self._pixels[y_from:y_to, x_from:x_to][mask] = color
 
+    def snapshot(self) -> np.ndarray:
+        """Copy the off-screen buffer's pixels out into a new array.
+
+        Lets a caller cache a background that rarely changes (e.g.
+        maze walls and pellets): restoring from this copy is one
+        vectorized numpy write, far cheaper than redrawing every wall
+        by hand again on every frame.
+
+        Returns:
+            A standalone copy of the current pixel buffer.
+        """
+        return self._pixels.copy()
+
+    def restore(self, snapshot: np.ndarray) -> None:
+        """Overwrite the off-screen buffer with a captured snapshot.
+
+        Args:
+            snapshot: An array earlier returned by :meth:`snapshot`,
+                same shape as the live buffer.
+        """
+        self._pixels[:] = snapshot
+
     def draw_text(self, x: int, y: int, color: int, text: str) -> None:
         """Draw a text string (thin wrapper over ``mlx_string_put``).
 

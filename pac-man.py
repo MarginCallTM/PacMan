@@ -80,6 +80,7 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
 
     last_state: GameState | None = None
     last_level_number: int | None = None
+    last_pellets_remaining: int | None = None
 
     def sync_maze_view() -> None:
         """Re-point the renderer at the engine's current level.
@@ -219,7 +220,7 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
         PLAYING but swaps in a brand new ``Level`` that the renderer
         must be re-synced to.
         """
-        nonlocal last_state, last_level_number
+        nonlocal last_state, last_level_number, last_pellets_remaining
         engine.update()
         state = engine.machine.state
         if state is not last_state:
@@ -231,6 +232,10 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
             if level.number != last_level_number:
                 last_level_number = level.number
                 sync_maze_view()
+                last_pellets_remaining = level.pellets.remaining()
+            elif level.pellets.remaining() != last_pellets_remaining:
+                last_pellets_remaining = level.pellets.remaining()
+                maze_renderer.load_pellets(level.pellets)
             maze_renderer.sync_tick(engine.ticks_elapsed)
             seconds_left = level.ticks_left // TICKS_PER_SECOND
             maze_renderer.set_hud(engine.score, level.number, seconds_left)
