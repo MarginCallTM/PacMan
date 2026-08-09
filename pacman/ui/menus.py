@@ -169,6 +169,13 @@ class InstructionsScreen(Screen):
         "P: Pause",
         "Q: Quit",
         "",
+        "Cheats (reviewer tools):",
+        "F1: Toggle invincibility",
+        "F2: Toggle ghost freeze",
+        "F3: Toggle speed boost",
+        "F4: Extra life",
+        "F5: Skip level",
+        "",
         "Press Enter or Escape to go back",
     )
 

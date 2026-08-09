@@ -26,6 +26,11 @@ TICKS_PER_SECOND = 21
 PLAYER_MOVE_PERIOD = 3
 CHASE_MOVE_PERIOD = 4
 FRIGHTENED_MOVE_PERIOD = 6
+# Speed-boost cheat: the player still moves one cell per step (same
+# invariant the renderer's per-tick glide relies on -- see
+# _Glide.advance in ui/renderer.py), just on a shorter period, three
+# times normal speed.
+BOOST_MOVE_PERIOD = 1
 # Timed effects, in seconds (converted with to_ticks by the engine).
 FRIGHTENED_SECONDS = 7.0
 RESPAWN_SECONDS = 7.0
@@ -64,7 +69,8 @@ class Cheats:
     Attributes:
         invincible: Ghost contact costs no life.
         frozen: Ghosts stop moving (their timers freeze too).
-        boost: The player moves two cells per move instead of one.
+        boost: The player moves on BOOST_MOVE_PERIOD instead of
+            PLAYER_MOVE_PERIOD -- faster, but still one cell per step.
     """
 
     invincible: bool = False
@@ -267,9 +273,12 @@ class Engine:
         after the player half and after the ghost half, so neither
         side can walk through the other. A fatal contact ends the
         tick early (death pause); so does leaving PLAYING.
-        Cheats hook in here: boost doubles the player steps (eating
-        between steps, so no pellet is jumped over) and freeze skips
-        the whole ghost half of the tick.
+        Cheats hook in here: boost shortens the player's move period
+        (BOOST_MOVE_PERIOD instead of PLAYER_MOVE_PERIOD) rather than
+        moving him two cells in the same tick -- the renderer's glide
+        assumes at most one cell per tick, so a same-tick double step
+        would render as a teleport -- and freeze skips the whole
+        ghost half of the tick.
         """
         if self.level is None or self.machine.state is not GameState.PLAYING:
             return
@@ -288,11 +297,11 @@ class Engine:
             self._lose_life(level)
             return
         if self._player_cooldown == 0:
-            steps = 2 if self.cheats.boost else 1
-            for _ in range(steps):
-                level.player.step(level.maze)
-                self._eat_pellet(level)
-            self._player_cooldown = PLAYER_MOVE_PERIOD - 1
+            level.player.step(level.maze)
+            self._eat_pellet(level)
+            period = (BOOST_MOVE_PERIOD if self.cheats.boost
+                      else PLAYER_MOVE_PERIOD)
+            self._player_cooldown = period - 1
         else:
             self._player_cooldown -= 1
         if self._handle_collisions(level):

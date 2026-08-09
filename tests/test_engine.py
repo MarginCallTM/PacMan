@@ -9,9 +9,9 @@ from pacman.config import GameConfig
 from pacman.entities.ghost import GhostState
 from pacman.entities.pellets import Pellets
 from pacman.game.engine import (
-    CHASE_MOVE_PERIOD, DEATH_PAUSE_SECONDS, FRIGHTENED_MOVE_PERIOD,
-    LEVEL_TRANSITION_SECONDS, MAX_TICKS_PER_UPDATE, PLAYER_MOVE_PERIOD,
-    TICKS_PER_SECOND, Cheats, Engine, to_ticks)
+    BOOST_MOVE_PERIOD, CHASE_MOVE_PERIOD, DEATH_PAUSE_SECONDS,
+    FRIGHTENED_MOVE_PERIOD, LEVEL_TRANSITION_SECONDS, MAX_TICKS_PER_UPDATE,
+    PLAYER_MOVE_PERIOD, TICKS_PER_SECOND, Cheats, Engine, to_ticks)
 from pacman.game.level import Level
 from pacman.game.states import GameState
 from pacman.highscores import load_highscores
@@ -337,23 +337,54 @@ def test_cheat_freeze_stops_ghosts_but_not_the_player(
     assert level.ticks_left == before - CHASE_MOVE_PERIOD
 
 
-def test_cheat_speed_boost_doubles_player_steps(
+def test_cheat_speed_boost_never_steps_twice_in_one_tick(
         engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Boost makes the player step twice per move, once when off."""
+    """Boost must move at most one cell per tick, like every entity.
+
+    Regression test: an earlier implementation looped player.step()
+    twice inside a single _tick() call. The renderer's _Glide (see
+    ui/renderer.py) treats any same-tick move of more than one cell
+    as a real teleport (a respawn) and snaps instead of gliding, so
+    that implementation made the boosted player appear to teleport.
+    """
     level = playing_level(engine)
-    calls: list[int] = []
+    calls_this_tick = 0
 
     def fake_step(maze: object) -> bool:
-        calls.append(1)
+        nonlocal calls_this_tick
+        calls_this_tick += 1
         return True
 
     monkeypatch.setattr(level.player, "step", fake_step)
     engine.cheat_toggle_speed_boost()
-    tick_one_move(engine)
-    assert len(calls) == 2
+    for _ in range(3 * PLAYER_MOVE_PERIOD):
+        calls_this_tick = 0
+        engine._tick()
+        assert calls_this_tick <= 1
+
+
+def test_cheat_speed_boost_moves_faster_than_normal(
+        engine: Engine, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Boost's shorter period does step the player more often overall."""
+    level = playing_level(engine)
+    calls = 0
+
+    def fake_step(maze: object) -> bool:
+        nonlocal calls
+        calls += 1
+        return True
+
+    monkeypatch.setattr(level.player, "step", fake_step)
+    ticks = 3 * PLAYER_MOVE_PERIOD
+    for _ in range(ticks):
+        engine._tick()
+    normal_calls = calls
+    calls = 0
     engine.cheat_toggle_speed_boost()
-    tick_one_move(engine)
-    assert len(calls) == 3
+    for _ in range(ticks):
+        engine._tick()
+    assert calls > normal_calls
+    assert calls == ticks // BOOST_MOVE_PERIOD
 
 
 def test_cheat_extra_life_adds_one(engine: Engine) -> None:

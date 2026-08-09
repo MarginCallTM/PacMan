@@ -7,7 +7,8 @@ from pacman.game.engine import (FRIGHTENED_MOVE_PERIOD, PLAYER_MOVE_PERIOD,
 from pacman.game.states import GameState
 from pacman.highscores import load_highscores
 from pacman.maze_loader import EAST, NORTH, SOUTH, WEST
-from pacman.ui.keys import (KEY_A, KEY_D, KEY_DOWN, KEY_LEFT, KEY_P, KEY_Q,
+from pacman.ui.keys import (KEY_A, KEY_D, KEY_DOWN, KEY_F1, KEY_F2, KEY_F3,
+                            KEY_F4, KEY_F5, KEY_LEFT, KEY_P, KEY_Q,
                             KEY_RIGHT, KEY_S, KEY_UP, KEY_W)
 from pacman.ui.menus import (GameOverScreen, HighscoresScreen,
                              InstructionsScreen, LevelTransitionScreen,
@@ -24,6 +25,17 @@ _DIRECTION_KEYS = {
     KEY_DOWN: SOUTH, KEY_S: SOUTH,
     KEY_LEFT: WEST, KEY_A: WEST,
     KEY_RIGHT: EAST, KEY_D: EAST,
+}
+
+# Every cheat key, mapped to the Engine method it triggers (subject
+# VI.5: reviewer tools). Bound only in handle_playing_key, so cheats
+# can only be toggled during gameplay, never from a menu screen.
+_CHEAT_KEYS = {
+    KEY_F1: Engine.cheat_toggle_invincibility,
+    KEY_F2: Engine.cheat_toggle_ghost_freeze,
+    KEY_F3: Engine.cheat_toggle_speed_boost,
+    KEY_F4: Engine.cheat_extra_life,
+    KEY_F5: Engine.cheat_level_skip,
 }
 
 
@@ -135,6 +147,8 @@ def run_app(config: GameConfig, scores: list[tuple[str, int]]) -> None:
             window.destroy()
         elif keycode in _DIRECTION_KEYS:
             engine.turn(_DIRECTION_KEYS[keycode])
+        elif keycode in _CHEAT_KEYS:
+            _CHEAT_KEYS[keycode](engine)
 
     def handle_level_transition_key(*_: Any) -> None:
         """No input during the "Level N" banner; it times out on its own."""

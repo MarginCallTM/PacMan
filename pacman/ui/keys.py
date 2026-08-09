@@ -18,3 +18,9 @@ KEY_W = 119
 KEY_A = 97
 KEY_S = 115
 KEY_D = 100
+# F1-F5: cheat mode (subject VI.5), documented on the Instructions screen.
+KEY_F1 = 65470
+KEY_F2 = 65471
+KEY_F3 = 65472
+KEY_F4 = 65473
+KEY_F5 = 65474
