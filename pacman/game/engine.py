@@ -14,23 +14,24 @@ from pacman.highscores import (
     add_score, is_valid_name, load_highscores, save_highscores)
 from pacman.maze_loader import DELTAS
 
-# Simulation cadence. 21 ticks/s is the finest quantum in which every
-# movement speed below is a WHOLE number of ticks per cell: a regular
-# per-entity rhythm is what lets the renderer glide smoothly (an
-# irregular rhythm cannot be predicted, hence on-screen stutter).
+# Simulation cadence. 21 ticks/s keeps every movement speed below a
+# WHOLE number of ticks per cell: a regular per-entity rhythm is what
+# lets the renderer glide smoothly (an irregular rhythm cannot be
+# predicted, hence on-screen stutter).
 TICKS_PER_SECOND = 21
 # Movement periods, in ticks per one-cell move. The player covers
-# 7 cells/s; chasing ghosts 75% of that (close to the arcade
-# original); frightened ghosts 50%, so a hunted ghost can actually
-# be caught. Every entity moves on a constant beat.
-PLAYER_MOVE_PERIOD = 3
-CHASE_MOVE_PERIOD = 4
-FRIGHTENED_MOVE_PERIOD = 6
+# 3.5 cells/s (playtest 2026-08-17: half the original 7 cells/s,
+# which was unplayable); chasing ghosts 75% of that (close to the
+# arcade original); frightened ghosts 50%, so a hunted ghost can
+# actually be caught. Every entity moves on a constant beat.
+PLAYER_MOVE_PERIOD = 6
+CHASE_MOVE_PERIOD = 8
+FRIGHTENED_MOVE_PERIOD = 12
 # Speed-boost cheat: the player still moves one cell per step (same
 # invariant the renderer's per-tick glide relies on -- see
 # _Glide.advance in ui/renderer.py), just on a shorter period, three
 # times normal speed.
-BOOST_MOVE_PERIOD = 1
+BOOST_MOVE_PERIOD = 2
 # Timed effects, in seconds (converted with to_ticks by the engine).
 FRIGHTENED_SECONDS = 7.0
 RESPAWN_SECONDS = 7.0

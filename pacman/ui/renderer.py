@@ -72,9 +72,12 @@ class _Glide:
             per move (its longest movement period). A measured
             interval above it means the entity was parked (wall,
             freeze cheat), not pacing: the next move must restart
-            at full speed, not in slow motion.
+            at the entity's normal pace, not in slow motion.
         gap: Ticks the current slide takes to reach its target.
         age: Whole ticks elapsed since the current slide started.
+        pivot_x: Corner waypoint column of an L-shaped slide, or None
+            when the slide is a straight line (see :meth:`advance`).
+        pivot_y: Corner waypoint row, paired with ``pivot_x``.
     """
 
     prev_x: float
@@ -84,6 +87,8 @@ class _Glide:
     max_gap: int = 1
     gap: int = 1
     age: int = 0
+    pivot_x: float | None = None
+    pivot_y: float | None = None
 
     def advance(self, x: int, y: int) -> None:
         """Register the cell reached after one freshly-elapsed tick.
@@ -101,8 +106,13 @@ class _Glide:
           gliding across the maze would look broken.
         - A one-cell move: start a new slide from the position drawn
           right now, spread over the interval since the previous move
-          -- unless that interval exceeds ``max_gap``, meaning the
-          entity was parked, in which case full speed again.
+          -- capped at ``max_gap``: a longer interval means the entity
+          was parked, and a restart glides at its normal pace (never
+          in slow motion, never as a one-tick dash either). If the
+          start differs from the target on BOTH axes (a turn landing
+          mid-slide), the slide is routed through the center of the
+          cell it was heading to -- a straight line would cut
+          diagonally through the wall corner.
 
         Args:
             x: The entity's column after this tick.
@@ -113,16 +123,28 @@ class _Glide:
             return
         if abs(x - self.x) + abs(y - self.y) > 1:
             self.prev_x, self.prev_y = float(x), float(y)
+            self.pivot_x = self.pivot_y = None
             self.gap, self.age = 1, 0
         else:
             self.age += 1
             self.prev_x, self.prev_y = self.at(0.0)
-            self.gap = self.age if self.age <= self.max_gap else 1
+            if self.prev_x != x and self.prev_y != y:
+                self.pivot_x, self.pivot_y = float(self.x), float(self.y)
+            else:
+                self.pivot_x = self.pivot_y = None
+            self.gap = min(self.age, self.max_gap)
             self.age = 0
         self.x, self.y = x, y
 
     def at(self, alpha: float) -> tuple[float, float]:
         """Interpolate the on-screen position along the current slide.
+
+        A straight slide interpolates prev -> target directly. An
+        L-shaped slide (see :meth:`advance`) walks prev -> pivot ->
+        target at constant speed along the two legs, so the sprite
+        turns exactly on the corner cell's center instead of cutting
+        through the wall. The second leg is always exactly one cell
+        long (the pivot is the cell the move started from).
 
         Args:
             alpha: Progress toward the next tick, in [0, 1) -- the
@@ -133,8 +155,18 @@ class _Glide:
             Fractional (x, y) cell coordinates to draw at.
         """
         progress = min(1.0, (self.age + alpha) / self.gap)
-        return (self.prev_x + (self.x - self.prev_x) * progress,
-                self.prev_y + (self.y - self.prev_y) * progress)
+        if self.pivot_x is None or self.pivot_y is None:
+            return (self.prev_x + (self.x - self.prev_x) * progress,
+                    self.prev_y + (self.y - self.prev_y) * progress)
+        leg = (abs(self.pivot_x - self.prev_x)
+               + abs(self.pivot_y - self.prev_y))
+        travelled = progress * (leg + 1.0)
+        if travelled < leg:
+            ratio = travelled / leg
+            return (self.prev_x + (self.pivot_x - self.prev_x) * ratio,
+                    self.prev_y + (self.pivot_y - self.prev_y) * ratio)
+        return (self.pivot_x + (self.x - self.pivot_x) * (travelled - leg),
+                self.pivot_y + (self.y - self.pivot_y) * (travelled - leg))
 
 
 class MazeRenderer(Screen):

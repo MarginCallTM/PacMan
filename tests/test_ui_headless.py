@@ -98,14 +98,31 @@ def test_glide_new_move_continues_from_drawn_position() -> None:
     assert glide.gap == 1
 
 
-def test_glide_parked_entity_restarts_at_full_speed() -> None:
-    """An interval beyond max_gap is a stop, not a pace: no slow-motion."""
+def test_glide_parked_entity_restarts_at_normal_pace() -> None:
+    """An interval beyond max_gap is a stop, not a pace: the restart
+    glides at the entity's own period -- neither slow-motion (spread
+    over the whole parked interval) nor a one-tick teleport dash."""
     glide = renderer._Glide(0.0, 0.0, 0, 0, max_gap=2)
     for _ in range(5):
         glide.advance(0, 0)
     glide.advance(1, 0)
-    assert glide.gap == 1
-    assert glide.at(0.5) == (0.5, 0.0)
+    assert glide.gap == 2
+    assert glide.at(0.5) == (0.25, 0.0)
+
+
+def test_glide_turn_mid_slide_routes_through_the_corner() -> None:
+    """A perpendicular move landing mid-slide follows an L-shaped
+    path through the corner cell's center: a straight line from the
+    drawn position would cut diagonally through the wall corner."""
+    glide = renderer._Glide(0.0, 0.0, 0, 0, max_gap=4)
+    glide.advance(0, 0)
+    glide.advance(1, 0)  # slide (0,0) -> (1,0), spread over 2 ticks
+    glide.advance(1, 1)  # turn south lands mid-slide, drawn at (0.5, 0)
+    assert glide.at(0.0) == (0.5, 0.0)
+    assert glide.at(0.25) == (0.875, 0.0)  # first leg: still on the row
+    assert glide.at(0.75) == (1.0, 0.625)  # second leg: on the column
+    glide.advance(1, 1)
+    assert glide.at(0.0) == (1.0, 1.0)  # slide completes on its target
 
 
 def test_north_walls_are_painted_white() -> None:
