@@ -121,8 +121,15 @@ modify it live. We take full responsibility for every line.
 - **Game engine and cheat mode (tasks 8.3, 10) and parts of the test
   suite:** AI-assisted drafts, then reviewed, tested and maintained by
   acombier.
-- **UI layer (tasks 5, 9):** sloubiat's work.
-  <!-- TODO(sloubiat): describe your AI usage for the ui/ modules -->
+- **UI layer (tasks 5, 9):** sloubiat's work, written by hand. AI was
+  used for two things: **debugging** (tracking down issues in the MLX
+  window/renderer integration, e.g. reading tracebacks and pinpointing
+  root causes when a drawing or input hook misbehaved) and
+  **restructuring the `ui/` files** as the screen count grew
+  (splitting responsibilities across `renderer.py`, `menus.py`,
+  `mlx_window.py` and `screen.py` instead of one growing file). Every
+  suggestion was reviewed, tested (`make lint` / `make test`) and
+  understood before being kept.
 - **Documentation:** drafted with AI assistance from our project log
   (`TODO.txt`), reviewed and edited by the team.
 
