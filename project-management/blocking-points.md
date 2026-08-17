@@ -1,7 +1,8 @@
 # Blocking points & conflicts — summary
 
 Chronological summary of everything that actually blocked us, and how it
-was resolved. Details live as dated notes in `TODO.txt`.
+was resolved. Details lived as dated notes in our `TODO.txt` work
+file (not part of the final submission).
 
 ## 1. Subject changed twice mid-project (biggest impact)
 

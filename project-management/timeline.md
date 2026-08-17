@@ -1,7 +1,8 @@
 # Timeline — plan vs actual
 
-Working mode: Kanban held in `TODO.txt` at the repo root (single source
-of truth, task numbers cited in every commit and document). This file
+Working mode: Kanban held in a `TODO.txt` work file (single source of
+truth during development, task numbers cited in every commit and
+document; kept out of the final submission). This file
 tracks the milestone-level plan against what actually happened.
 
 ## Planned milestones (set 2026-07-07)

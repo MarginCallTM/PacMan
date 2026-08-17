@@ -141,7 +141,8 @@ modify it live. We take full responsibility for every line.
   suggestion was reviewed, tested (`make lint` / `make test`) and
   understood before being kept.
 - **Documentation:** drafted with AI assistance from our project log
-  (`TODO.txt`), reviewed and edited by the team.
+  (a task-board work file, not part of the final submission), reviewed
+  and edited by the team.
 
 Every AI-assisted piece went through the same gates as the rest of the
 code: flake8 + mypy clean, covered by the pytest suite, and re-read

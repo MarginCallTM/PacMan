@@ -24,9 +24,10 @@ question.
   for sloubiat), merged into each other at integration points
   (2026-07-22 via PR #1, 2026-07-28 both ways). `main` lags behind and
   is fast-forwarded at stable points.
-- `TODO.txt` at the repo root is the shared Kanban: statuses `[ ]/[~]/[x]`,
-  dated notes, decisions tagged `DECISION ... -> README`. Both edit it;
-  merge conflicts on it are resolved by keeping both sides' notes.
+- A `TODO.txt` work file was the shared Kanban: statuses `[ ]/[~]/[x]`,
+  dated notes, decisions tagged `DECISION ... -> README`. Both edited it;
+  merge conflicts on it were resolved by keeping both sides' notes
+  (removed from the final submission).
 - Quality gate before every push: `make lint` + `uv run pytest`.
 - Decisions: proposed by whoever owns the task, recorded in TODO.txt,
   challenged at merge time. Subject rules always win over preferences.
