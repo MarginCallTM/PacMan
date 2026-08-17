@@ -31,7 +31,7 @@ make debug          # same, under pdb
 make lint           # flake8 + mypy (mandatory flags)
 make test           # pytest (127 tests)
 make clean          # remove caches and build artifacts
-make package        # build the distributable wheel into dist/
+make build          # regenerate the Itch.io bundle (dist/pacman-42.zip)
 ```
 
 No uv on the machine? Fallback:
@@ -50,13 +50,23 @@ Python traceback.
 
 ### Packaging
 
-`make package` (i.e. `uv build`, spec in `pyproject.toml`) regenerates
-the distributable build: `dist/pacman-0.1.0-py3-none-any.whl`. The
-wheel is **directly runnable** — `python3 dist/pacman-0.1.0-py3-none-any.whl
-config.json` — thanks to a root-level `__main__.py` inside the archive
-that forwards to `pacman.app`, the exact code path behind `pac-man.py`.
-Same platform rule as above (Linux/X11), with numpy and the two bundled
-wheels installed.
+`make build` (i.e. `./package.sh`, the packaging spec at the repo
+root) regenerates the full Itch.io bundle in one command:
+`dist/pacman-42.zip`. The bundle is self-contained — our game wheel
+(built by `uv build` from `pyproject.toml`), the two assigned wheels
+as-is, the commented `config.json`, `INSTRUCTIONS.txt` (controls,
+cheats, config), and a single **`./pacman` launcher**: on first run it
+creates a local venv and installs the wheels, then (and on every later
+run) starts the game. Player-side requirements: Linux/X11 (the MLX
+wheel ships a prebuilt `.so`, nothing to compile), Python 3.10+,
+internet once for numpy.
+
+The game wheel itself is **directly runnable** —
+`python3 pacman-0.1.0-py3-none-any.whl config.json` — thanks to a
+root-level `__main__.py` inside the archive that forwards to
+`pacman.app`, the exact code path behind `pac-man.py` (that's what the
+`pacman` launcher execs). The build is deployed on Itch.io as a free,
+unlisted download.
 
 ### Controls
 

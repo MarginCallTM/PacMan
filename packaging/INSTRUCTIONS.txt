@@ -1,0 +1,49 @@
+Pac-Man — "Ghosts! More ghosts!" (42 curriculum)
+=================================================
+
+Requirements
+------------
+- Linux with an X11 display (the MLX graphics library ships as a
+  prebuilt Linux/X11 .so inside its wheel — no compilation needed).
+- Python 3.10 or later.
+- Internet access once, during install (numpy is fetched from PyPI;
+  everything else is bundled).
+
+Install & play
+--------------
+    ./pacman            # first run installs into ./.venv, then starts
+                        # the game with the bundled config.json
+
+To use your own configuration file:
+    ./pacman my_config.json
+
+Controls
+--------
+    Arrow keys / WASD   Move Pac-Man
+    Enter               Validate (menus, name entry)
+    Escape              Back (instructions, highscores)
+    P                   Pause / resume
+    Q                   Quit
+
+Cheat keys (during gameplay, for reviewers)
+-------------------------------------------
+    F1  Toggle invincibility
+    F2  Toggle ghost freeze
+    F3  Toggle speed boost (3x)
+    F4  Extra life
+    F5  Skip level
+
+Configuration
+-------------
+config.json is JSON; lines starting with '#' are comments. Every key
+is optional: wrong or missing values fall back to safe defaults. Keys:
+highscore_filename, level (array of {width, height}), lives, pacgum,
+points_per_pacgum, points_per_super_pacgum, points_per_ghost, seed,
+level_max_time. See the README in the source repository for ranges
+and defaults.
+
+Rules
+-----
+Eat every pacgum to clear a level; clear all 10 levels to win. Ghosts
+hunt you — grab a super-pacgum (maze corners) to hunt them back.
+3 lives, 90 seconds per level, top-10 highscores saved locally.

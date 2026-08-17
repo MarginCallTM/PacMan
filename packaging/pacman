@@ -1,0 +1,24 @@
+#!/bin/sh
+# Pac-Man launcher: installs on first run, then starts the game.
+#
+#   ./pacman                  # play with the bundled config.json
+#   ./pacman my_config.json   # play with your own configuration
+#
+# First run creates a local .venv next to this script and installs the
+# bundled wheels into it (only numpy is fetched from PyPI, once).
+# Later runs start the game directly. The pacman wheel is directly
+# runnable: it carries a __main__.py at its root that forwards to
+# pacman.app -- the same code path as pac-man.py in the source repo.
+set -e
+cd "$(dirname "$0")"
+if [ ! -x .venv/bin/python3 ]; then
+    echo "First run: installing into ./.venv (numpy from PyPI + bundled wheels)..."
+    python3 -m venv .venv
+    .venv/bin/pip install --quiet numpy \
+        ./mazegenerator-*-py3-none-any.whl \
+        ./mlx-*-py3-none-any.whl \
+        ./pacman-*-py3-none-any.whl
+    echo "Install done."
+fi
+[ $# -eq 0 ] && set -- config.json
+exec .venv/bin/python3 ./pacman-*-py3-none-any.whl "$@"
