@@ -7,7 +7,7 @@
 
 CONFIG ?= config.json
 
-.PHONY: install run debug clean lint lint-strict test
+.PHONY: install run debug clean lint lint-strict test package
 
 install:
 	uv sync
@@ -20,7 +20,10 @@ debug:
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
-	rm -rf .mypy_cache .pytest_cache
+	rm -rf .mypy_cache .pytest_cache dist build *.egg-info
+
+package:
+	uv build
 
 lint:
 	uv run flake8 .

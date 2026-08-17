@@ -34,16 +34,19 @@ tracks the milestone-level plan against what actually happened.
 | 07-27 | acombier* | Engine increments 2-4 + cheat mode engine side (113 → 119 tests) |
 | 07-27 | sloubiat | GameOver/Victory/NameEntry screens + highscores screen |
 | 07-28 | both | Full merge sloubiat ↔ engine; headless tests adapted to numpy; docs |
+| 07-29 | both | Task 1 done: pac-man.py wired to launch contract; UI ↔ engine linked; game fluidity pass |
+| 08-08/09 | sloubiat | Level-finished UI transition, log on missing config key, cheat key bindings (F1-F5) |
+| 08-17 | sloubiat | Packaging groundwork (task 11): entry logic moved to `pacman/app.py`, wheel build via pyproject, runnable-wheel `__main__.py` |
+| 08-17 | acombier* | Playtest: game speed halved (periods 3/4/6 → 6/8/12); glide clipping fixed (normal-pace restart + L-path around corners); pre-review audit against subject v1.5 |
 
 \* AI-assisted implementation, reviewed and committed by acombier (see
 README "How AI was used").
 
-## Status vs plan (as of 2026-07-28)
+## Status vs plan (as of 2026-08-17, pre-review)
 
-- M1 ~90% (entry point rewrite pending — task 1), M2 done, M3 ~70%
-  (player/ghost drawing pending), M4 done (engine side), M5 ~60%
-  (cheats engine-side done; HUD, pause menu, key bindings pending),
-  M6 started (this docs pass), M7 not started.
-- Remaining critical path: task 1 (pac-man.py wiring) → 5.3-5.7 (draw
-  player/ghosts) → 9.2/9.3 (HUD, pause menu) → 10.6 (cheat keys + docs)
-  → 11 (Itch.io packaging) → 15 (defense drills).
+- M1-M5 done (full game loop, UI screens, HUD, pause, cheats, key
+  bindings). M6 ~70%: README and PM docs done, wheel build works
+  (`make package`), Itch.io page/upload still pending. M7 pending.
+- Remaining critical path: 11.2-11.5 (in-package instructions, clean
+  machine test, Itch.io upload, live-regen rehearsal) → sloubiat's AI
+  usage note in README → 15 (defense drills).

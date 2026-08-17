@@ -8,3 +8,11 @@ __pycache__/
 
 # Generated at runtime
 highscores.json
+
+# OS noise
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

@@ -29,8 +29,9 @@ make install        # uv sync — creates .venv with exact locked versions
 make run            # uv run python3 pac-man.py config.json
 make debug          # same, under pdb
 make lint           # flake8 + mypy (mandatory flags)
-make test           # pytest (119 tests)
-make clean          # remove caches
+make test           # pytest (127 tests)
+make clean          # remove caches and build artifacts
+make package        # build the distributable wheel into dist/
 ```
 
 No uv on the machine? Fallback:
@@ -47,6 +48,16 @@ argument, the JSON configuration file. Any error (wrong argument count,
 missing file, invalid JSON, bad values) prints a clear message and never a
 Python traceback.
 
+### Packaging
+
+`make package` (i.e. `uv build`, spec in `pyproject.toml`) regenerates
+the distributable build: `dist/pacman-0.1.0-py3-none-any.whl`. The
+wheel is **directly runnable** — `python3 dist/pacman-0.1.0-py3-none-any.whl
+config.json` — thanks to a root-level `__main__.py` inside the archive
+that forwards to `pacman.app`, the exact code path behind `pac-man.py`.
+Same platform rule as above (Linux/X11), with numpy and the two bundled
+wheels installed.
+
 ### Controls
 
 | Key | Action |
@@ -57,22 +68,21 @@ Python traceback.
 | P | Pause / resume |
 | Q | Quit |
 
-<!-- TODO(task 1): confirm the final key map once pac-man.py wiring lands -->
-
 ### Cheat mode (for reviewers)
 
 Five cheats are built into the engine so every feature can be tested
 quickly:
 
-| Cheat | Effect |
-|---|---|
-| Invincibility | Ghost contact costs no life (frightened ghosts stay edible) |
-| Level skip | Instantly win the current level (score/lives carry over) |
-| Ghost freeze | Ghosts stop moving (their state timers freeze too) |
-| Extra life | +1 life |
-| Speed boost | Pac-Man moves 2 cells per move instead of 1 |
+| Key | Cheat | Effect |
+|---|---|---|
+| F1 | Invincibility | Ghost contact costs no life (frightened ghosts stay edible) |
+| F2 | Ghost freeze | Ghosts stop moving (their state timers freeze too) |
+| F3 | Speed boost | Pac-Man moves 3x faster (still one cell per step) |
+| F4 | Extra life | +1 life |
+| F5 | Level skip | Instantly win the current level (score/lives carry over) |
 
-<!-- TODO(task 10.6): document the activation keys once bound in pac-man.py -->
+Cheat keys only work during gameplay (never on menu screens); they are
+also listed on the in-game Instructions screen.
 
 ## Resources
 
@@ -208,14 +218,15 @@ layer): no other module imports the package.
   Eaten ghosts teleport home and respawn after 7 s (no "eyes travel home"
   animation — deliberate simplification).
 - **Movement periods:** every entity moves on a constant beat, a whole
-  number of ticks per cell — the player every 3 ticks (7 cells/s),
-  chasing ghosts every 4 (5.25 cells/s, 75% of the player) and
-  frightened ghosts every 6 (3.5 cells/s, 50%), close to the arcade
-  ratios: the player can escape a chaser and catch a fleer. 21 ticks/s
-  is precisely the finest quantum that makes all three speeds whole
-  periods; a *regular* rhythm per entity is what the renderer needs to
-  interpolate perfectly smooth motion. Timed states still tick every
-  tick, so their real-time durations are unaffected.
+  number of ticks per cell — the player every 6 ticks (3.5 cells/s;
+  halved from 7 after the 2026-08-17 playtest found the game
+  unplayably fast), chasing ghosts every 8 (2.625 cells/s, 75% of the
+  player) and frightened ghosts every 12 (1.75 cells/s, 50%), keeping
+  the arcade ratios: the player can escape a chaser and catch a fleer.
+  At 21 ticks/s every period is a whole number of ticks; a *regular*
+  rhythm per entity is what the renderer needs to interpolate
+  perfectly smooth motion. Timed states still tick every tick, so
+  their real-time durations are unaffected.
 - **Death pause:** a fatal ghost contact freezes the simulation for
   0.7 s before the round resets. The display eases up to one movement
   period behind the simulation, so an instant reset would land while
@@ -232,13 +243,19 @@ layer): no other module imports the package.
   and hooks for input. `fill_rect`/`fill_disc` are our own per-pixel
   writes; numpy only vectorizes those same writes in C (zero-copy view
   over the MLX buffer), it draws nothing by itself. Screens redraw only
-  when dirty.
+  when dirty. Entity motion is interpolated between cells at each
+  entity's own observed pace; a move landing mid-slide continues from
+  the exact drawn position, and a perpendicular one follows an L-shaped
+  path through the corner cell — sprites never jump and never cut
+  through walls.
 
 ## General Software Architecture
 
 ```
-pac-man.py                  entry point: arg parsing, top-level error guard
+pac-man.py                  launch-contract shim (python3 pac-man.py config.json)
+__main__.py                 wheel-root shim (python3 <wheel> config.json)
 pacman/
+    app.py                  arg parsing, UI/engine wiring, error guard
     config.py               JSON + comments -> validated GameConfig
     maze_loader.py          ONLY importer of mazegenerator (anti-corruption)
     highscores.py           top-10 persistence (atomic save)
@@ -257,7 +274,7 @@ pacman/
         renderer.py         maze/pellet rasterizer
         menus.py            menus, instructions, highscores, end screens
         keys.py             X11 keycodes
-tests/                      119 pytest tests, all headless
+tests/                      127 pytest tests, all headless
 project-management/         timeline, risks, choices, test plan...
 ```
 
