@@ -4,7 +4,7 @@ The MLX C library cannot load on macOS (Linux-only .so), and tests
 must never require a display anyway. So ``MlxWindow.__init__`` is
 bypassed and a plain numpy buffer is injected in place of the
 zero-copy view over the MLX image: ``fill_rect``/``fill_disc`` and
-``MazeRenderer._draw`` are pure array writes, testable on any
+``MazeRenderer._draw_walls`` are pure array writes, testable on any
 machine by reading pixels back.
 """
 
@@ -42,7 +42,7 @@ def draw_seed42() -> tuple[MlxWindow, renderer.MazeRenderer, Maze]:
     painter = renderer.MazeRenderer(window)
     painter.load(maze)
     window.clear(renderer._BACKGROUND_COLOR)
-    painter._draw(maze)
+    painter._draw_walls(maze)
     return window, painter, maze
 
 

@@ -10,7 +10,7 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 0. PROJECT SETUP & TOOLING                                             owner: both (kickoff)
 --------------------------------------------------------------------------------
 [x] 0.1  Create the git repository (source at root, per subject ch. VII/X)
-[~] 0.2  Environment management with uv:
+[x] 0.2  Environment management with uv:
          [x] uv init: pyproject.toml with requires-python >= 3.10
          [x] commit pyproject.toml + uv.lock (reproducible env for both
              teammates and for the peer review)
@@ -88,16 +88,23 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 1. ENTRY POINT: pac-man.py                                             owner: Sloubiat
 --------------------------------------------------------------------------------
-[ ] 1.1  Argument parsing: EXACTLY one argument (the JSON config file);
+[x] 1.1  Argument parsing: EXACTLY one argument (the JSON config file);
          wrong count -> usage message + clean exit (no traceback)
-[ ] 1.2  Top-level error guard: try/except around the whole program so ANY
+         (_parse_args: len(argv) != 2 -> usage to stderr + SystemExit(1))
+[x] 1.2  Top-level error guard: try/except around the whole program so ANY
          unhandled error prints a clear message, never a Python traceback
-[ ] 1.3  Wire together: load config -> load highscores -> start engine
-         NOTE 2026-07-22: pac-man.py currently holds Sloubiat's
-         TEMPORARY sandbox main (menu -> maze view, hardcoded 15x15
-         maze, no arg parsing, module docstring dropped) — task 1
-         must rewrite it to the launch contract and restore the
-         module docstring
+         (__main__ guard: KeyboardInterrupt -> exit 130, Exception ->
+         "error: unexpected failure: ..." + exit 1, no traceback)
+[x] 1.3  Wire together: load config -> load highscores -> start engine
+         (DONE by 2026-07-29 (link ui to engine) and settled since:
+         main() loads config+highscores, run_app() builds the MLX
+         window + every screen once, a single loop hook (frame()) and
+         a single key hook (re-bound per GameState via key_handlers)
+         drive the whole app; engine.machine.state is the one
+         authoritative answer to "what's on screen". Direction keys
+         (arrows+WASD), P/Q, and cheat keys F1-F5 all wired in
+         handle_playing_key; game-over/victory -> name entry ->
+         submit_name -> highscores reload chained end to end.)
 
 --------------------------------------------------------------------------------
 2. CONFIG MODULE (pacman/config.py)                                    owner: A (acombier)
@@ -180,19 +187,34 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
          MazeRenderer._draw. value-15 cells filled with a distinct
          blue (_SOLID_COLOR) plus a white outline (_WALL_COLOR) — the
          "42" pattern IS visually called out (2026-07-23 check)
-[ ] 5.3  Draw the player (position + facing direction)
-[ ] 5.4  Keyboard input: arrows AND WASD, 4-direction movement,
+[x] 5.3  Draw the player (position + facing direction)
+         (_draw_player, direction-aware; smooth inter-cell motion via
+         the _Glide helper, see 5.5 note)
+[x] 5.4  Keyboard input: arrows AND WASD, 4-direction movement,
          corridor-only (uses maze_loader.can_move)
-[~] 5.5  Grid-to-pixel conversion: cell_w/cell_h merged into a single
+         (pac-man.py _DIRECTION_KEYS -> engine.turn(); corridor
+         legality enforced in Player/engine, not the renderer)
+[x] 5.5  Grid-to-pixel conversion: cell_w/cell_h merged into a single
          _cell_size (forces square cells regardless of maze aspect
          ratio), computed once in MazeRenderer.load, reused by
-         _draw/_draw_dot; still not extracted as a standalone helper
-         other modules could share
-[ ] 5.6  Playable sandbox milestone: walk a maze on screen
-[~] 5.7  Draw pellets, super-pellets (done: _draw_pellets/_draw_dot,
-         wired from pac-man.py via load_pellets, 2026-07-23); ghosts
-         (per-state colors: chase/frightened/eaten) and HUD (see 9.2)
-         still not drawn
+         _draw_walls/_draw_dot/_draw_player/_draw_ghosts
+         (DECISION: kept as a MazeRenderer instance concern rather
+         than a standalone shared helper -- only the renderer needs
+         it -> README/defense talking point if asked "why not a free
+         function". _Glide class added on top for smooth per-tick
+         interpolation between cells, driven by sync_tick()/
+         set_tick_progress(), player_pace/ghost_pace from engine.py's
+         PLAYER_MOVE_PERIOD/FRIGHTENED_MOVE_PERIOD.)
+[x] 5.6  Playable sandbox milestone: walk a maze on screen
+         (superseded by the full game loop being wired, 3c31dff
+         2026-07-29 "link ui to engine" onward)
+[x] 5.7  Draw pellets, super-pellets (_draw_pellets/_draw_dot, wired
+         from pac-man.py via load_pellets, 2026-07-23); ghosts
+         (_draw_ghosts/_draw_ghost_body/_draw_ghost_eyes -- flat
+         per-ghost color, state read live off Ghost.state so it
+         changes color the instant a ghost turns FRIGHTENED/EATEN,
+         no extra bookkeeping needed) and HUD (_draw_hud, see 9.2)
+         all done and wired in pac-man.py's frame() / sync_maze_view()
 
 --------------------------------------------------------------------------------
 6. PELLETS & SCORING (pacman/entities/pellets.py)                      owner: A (acombier)
@@ -344,13 +366,15 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [x] 8.6  Pause / resume during gameplay
          (DONE 2026-07-27: Engine.toggle_pause + quit_to_menu;
          accumulator already drained while paused (inc 1); tested)
-[~] 8.7  Game end (win or lose): show final score -> name prompt ->
+[x] 8.7  Game end (win or lose): show final score -> name prompt ->
          save highscore -> back to main menu
          (ENGINE SIDE DONE 2026-07-27: enter_name_entry + submit_name
          (save + back to MENU), tested incl. invalid-name refusal.
-         REMAINING: wire Sloubiat's GameOver/Victory/NameEntry
-         screens (9.4/9.5, currently behind dev shortcuts) to this
-         API in pac-man.py — needs the sloubiat branch merge)
+         UI SIDE DONE 2026-07-29 (3c31dff "link ui to engine"):
+         GameOverScreen/VictoryScreen -> engine.enter_name_entry() ->
+         NameEntryScreen -> engine.submit_name() -> on success,
+         highscores_screen reloaded from disk so the board is fresh
+         next time it's opened. Dev-only KEY_G/KEY_V shortcuts removed.)
 [x] 8.8  Keep engine + entities graphics-free (unit-testable); only
          ui/ touches the MLX wrapper; timing via stdlib `time`
          (MLX has no clock)
@@ -360,38 +384,40 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 9. UI SCREENS & HUD (pacman/ui/menus.py)                               owner: Sloubiat
 --------------------------------------------------------------------------------
-[~] 9.1  Main menu: Start Game / View Highscores (top 10 + names) /
+[x] 9.1  Main menu: Start Game / View Highscores (top 10 + names) /
          Instructions (controls + rules + cheat keys) / Exit
-         (MainMenu class done: all 4 options, Up/Down/Enter
-         navigation, selected-button highlight; all 4 now wired in
-         pac-man.py. View Highscores -> new HighscoresScreen
-         (pacman/ui/menus.py): scores injected via load(), same
-         pattern as MazeRenderer.load/_EndScreen.set_score; draws
-         rank+name+score per entry (or a placeholder when the board
-         is empty); back to menu on Enter/Escape like
-         InstructionsScreen; fed with load_highscores(config.
-         highscore_filename) at startup in pac-man.py. flake8/mypy/
-         pytest all green (82 tests — no dedicated test yet, ui/
-         screens aren't unit-tested by design). 2026-07-27.
-         Only remaining gap on this task: Instructions doesn't list
-         cheat keys yet — blocked on cheat mode itself, task 10,
-         still all [ ])
-[ ] 9.2  In-game HUD, always visible: score, lives, level, remaining time
-[ ] 9.3  Pause menu: Resume / Return to main menu
-         (InstructionsScreen text already advertises "P: Pause" but
-         no PauseScreen class / P-key hook exists yet, 2026-07-27)
-[~] 9.4  Game Over screen: final score + name entry prompt
-         (GameOverScreen done: title + final score + "press Enter";
-         wired in pac-man.py but only behind the dev-only KEY_G
-         shortcut (see engine TODO comment in run_app); on
-         confirm it goes straight back to the main menu, NOT through
-         NameEntryScreen yet, and nothing is saved to highscores.py
-         -> still needed once the real engine drives game-over,
-         2026-07-27)
-[~] 9.5  Victory screen: final score + congratulatory message + name entry
-         (VictoryScreen done, same pattern/gaps as 9.4: dev-only
-         KEY_V shortcut, no chain to NameEntryScreen or highscore
-         save yet, 2026-07-27)
+         (MainMenu class: all 4 options, Up/Down/Enter navigation,
+         selected-button highlight, all wired in pac-man.py.
+         HighscoresScreen: scores injected via load(), same pattern
+         as MazeRenderer.load/_EndScreen.set_score; draws
+         rank+name+score per entry (or a placeholder when empty);
+         back to menu on Enter/Escape; refreshed after every
+         submit_name() so a fresh result shows up immediately.
+         InstructionsScreen.LINES now lists the 5 cheat keys
+         (F1-F5, added with cheat mode wiring, c14faf5 2026-08-09) —
+         the gap noted on 2026-07-27 is closed.)
+[x] 9.2  In-game HUD, always visible: score, lives, level, remaining time
+         (_draw_hud in renderer.py: score/level/seconds_left pushed
+         once per frame via maze_renderer.set_hud(...) in
+         pac-man.py's frame() (no single mutable object to read them
+         from at draw time); lives are read live off
+         self._player.lives instead, since Player already carries
+         that state. Remaining time text turns red under
+         _HUD_WARNING_SECONDS.)
+[x] 9.3  Pause menu: Resume / Return to main menu
+         (PauseScreen (_OptionMenu subclass): reachable only from
+         PLAYING via P (engine.toggle_pause()); Resume calls
+         toggle_pause() again, Return to Main Menu calls
+         engine.quit_to_menu())
+[x] 9.4  Game Over screen: final score + name entry prompt
+         (GameOverScreen (_EndScreen): title + final score + "press
+         Enter"; on confirm -> engine.enter_name_entry() ->
+         NameEntryScreen -> engine.submit_name() -> saved to
+         highscores.json -> back to MENU. Dev-only shortcut removed,
+         chain done 2026-07-29 "link ui to engine".)
+[x] 9.5  Victory screen: final score + congratulatory message + name entry
+         (VictoryScreen (_EndScreen): same chain as 9.4, plus the
+         congratulatory MESSAGE; dev-only shortcut removed.)
 [x] 9.6  Name input widget: live validation (max 10 chars, alphanumeric
          + spaces only)
          (NameEntryScreen done: reuses highscores.is_valid_name +
@@ -404,10 +430,13 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 10. CHEAT MODE (in engine, keys documented)                            owner: both (pair)
 -------------------------------------------------------------------------------
-          NOTE 2026-07-27: engine side DONE for 10.1-10.5 (Cheats
-          dataclass + cheat_* methods, reset by start_game, 6 tests);
-          REMAINING for the whole task: bind keys in the UI loop
-          (pac-man.py task 1 / sloubiat merge) + 10.6 docs.
+          NOTE 2026-08-09 (c14faf5 "add cheat"): engine side DONE for
+          10.1-10.5 since 2026-07-27 (Cheats dataclass + cheat_*
+          methods, reset by start_game, 6 tests); keys are now bound
+          too -- _CHEAT_KEYS in pac-man.py maps F1-F5 to the Engine.
+          cheat_* methods, read in handle_playing_key so cheats only
+          fire during PLAYING. InstructionsScreen.LINES lists all 5.
+          Only 10.6 (copy the same list into README.md) is still open.
 [x] 10.1  Invincibility toggle (no life lost on ghost contact)
           (cheat_toggle_invincibility: _handle_collisions skips the
           CHASE branch; frightened ghosts stay edible)
@@ -422,10 +451,14 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 [x] 10.5  Speed boost (player moves faster)
           (cheat_toggle_speed_boost: 2 player steps per tick, eating
           between steps so no pellet is jumped over)
-[ ] 10.6  Document all cheat keys in README + in the Instructions screen
+[~] 10.6  Document all cheat keys in README + in the Instructions screen
           (must genuinely help the reviewer test everything)
-          (blocked on key bindings: keys get chosen when pac-man.py
-          is rewritten, task 1)
+          (Instructions screen DONE (F1-F5 listed with their effect,
+          see above). README.md still has the two TODO markers left
+          by the 2026-07-28 draft ("confirm key map" / "document
+          activation keys") -- keys are stable now (F1-F5, see
+          pacman/ui/keys.py), just needs the markers replaced with
+          the final table -> task 13.3)
 
 --------------------------------------------------------------------------------
 11. PACKAGING & DEPLOYMENT (Itch.io)                                   owner: A (acombier)
@@ -470,17 +503,25 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 13. README.md (English, at repo root)                                  owner: Sloubiat
 --------------------------------------------------------------------------------
-          NOTE 2026-07-28: full README.md drafted (AI, from TODO/
-          decisions) and checked against subject ch. IX. Sloubiat
-          (owner) must review + fill his AI-usage part; 2 TODO
-          markers left inside (key map task 1, cheat keys 10.6).
+          NOTE 2026-08-17: task 1 (pac-man.py wiring) and task 10
+          (cheat keys) both landed since the 2026-07-28 draft, so the
+          two TODO markers left in README.md are now unblocked —
+          just need the final table pasted in, no more code to wait
+          on. Sloubiat still needs to fill his own AI-usage bullet.
 [x] 13.1  First line, in italics: "This project has been created as part
           of the 42 curriculum by <login1>, <login2>."
 [x] 13.2  Description section (goal + brief overview)
 [~] 13.3  Instructions section (install, run, controls, Makefile targets)
-          (done except final key map — waits on task 1 wiring)
+          (controls table already correct; still has
+          "<!-- TODO(task 1): confirm the final key map -->" and
+          "<!-- TODO(task 10.6): document the activation keys -->"
+          markers to remove now that pac-man.py/keys.py are final —
+          copy the 5-row cheat table from InstructionsScreen.LINES)
 [~] 13.4  Resources section: references + HOW AI WAS USED (which tasks,
           which parts) — mandatory per subject ch. II/IX
+          (everything written except one marker:
+          "<!-- TODO(sloubiat): describe your AI usage for the ui/
+          modules -->" under the UI layer bullet — Sloubiat's to fill)
 [x] 13.5  Configuration section: every key, type, default, clamping rules
 [x] 13.6  Highscore section: how it works + why this storage choice
 [x] 13.7  Maze Generation section: how the A-Maze-ing package is used
@@ -494,12 +535,33 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 --------------------------------------------------------------------------------
 14. QUALITY GATES (continuous, before every commit)                    owner: both
 --------------------------------------------------------------------------------
-[ ] 14.1  flake8 clean on the whole repo
-[ ] 14.2  mypy clean with the mandatory flags (aim for --strict)
-[ ] 14.3  Type hints + Google-style docstrings on every function/class
-[ ] 14.4  try/except on anything that can fail; context managers for
+          NOTE 2026-08-17: `make lint` and `make test` currently both
+          green (126 tests). Found and fixed a real regression while
+          auditing this file: the renderer refactor around
+          2026-07-27/28 renamed MazeRenderer._draw -> _draw_walls,
+          but tests/test_ui_headless.py still called the old name —
+          broke both `make lint` (mypy attr-defined error) and 3
+          pytest cases. This is exactly the kind of drift these
+          "continuous" checkboxes exist to catch; re-run `make lint`
+          and `make test` after every merge, don't trust this file's
+          last-known-green state.
+[x] 14.1  flake8 clean on the whole repo
+[x] 14.2  mypy clean with the mandatory flags (aim for --strict)
+          (not yet run with --strict / lint-strict — only the
+          mandatory flag set from the subject; try lint-strict before
+          the defense and see how far off it is)
+[x] 14.3  Type hints + Google-style docstrings on every function/class
+          (holds under --disallow-untyped-defs --check-untyped-defs;
+          spot-check docstring quality on the oldest files before
+          the defense, they were written earliest and reviewed least)
+[x] 14.4  try/except on anything that can fail; context managers for
           all file access
-[ ] 14.5  pytest suite green (config, maze adapter, highscores, entities)
+[x] 14.5  pytest suite green (config, maze adapter, highscores, entities)
+          (126 tests green as of 2026-08-17; test_config.py 17,
+          test_engine.py 29, test_ghost.py 7, test_ghost_ai.py 18,
+          test_highscores.py 11, test_level.py 7, test_maze_loader.py
+          9, test_pellets.py 8, test_player.py 7, test_states.py 6,
+          test_ui_headless.py 7)
 
 --------------------------------------------------------------------------------
 15. DEFENSE PREPARATION                                                owner: both
@@ -519,13 +581,25 @@ and task 5 (rendering sandbox) can be done in parallel by two people.
 
 ================================================================================
 MILESTONES (suggested)
-  M1: 0-1 done, lint green                    (setup)
-  M2: 2-4 done + tests                        (data layer)
-  M3: 5 done                                  (playable sandbox)
-  M4: 6-8 done                                (full game loop)
-  M5: 9-10 done                               (UI + cheats)
-  M6: 11-13 done                              (ship it)
-  M7: 14-15 continuously + final rehearsal    (defense-ready)
+  M1: 0-1 done, lint green                    (setup)              [x] DONE
+  M2: 2-4 done + tests                        (data layer)         [x] DONE
+  M3: 5 done                                  (playable sandbox)   [x] DONE
+  M4: 6-8 done                                (full game loop)     [x] DONE
+  M5: 9-10 done                               (UI + cheats)        [~] 10.6 open (README doc only)
+  M6: 11-13 done                              (ship it)            [ ] 11 packaging not started; 13.3/13.4 two markers left
+  M7: 14-15 continuously + final rehearsal    (defense-ready)      [~] 14 green today, 15 not started
+
+  STATUS AS OF 2026-08-17: the game is fully playable end to end
+  (menu -> play -> pause -> game over/victory -> name entry ->
+  highscores -> menu) with all 5 cheats bound. What's actually left:
+  - README: fill 3 TODO markers (key map, cheat keys, Sloubiat's AI
+    usage bullet) -- task 13.3/13.4, no code involved
+  - Packaging to Itch.io -- task 11, entirely untouched, biggest
+    remaining block of work
+  - project-management docs: re-read as a team, don't just trust the
+    AI-drafted version (12.2, 12.6)
+  - Defense prep -- task 15, entirely untouched (cross-review,
+    config-swap drill, recode drills, packaging rehearsal)
 
 TEAM SPLIT (agreed):
   acombier: 2, 3, 4 (data layer), then 6, 7 (entities), 11 (packaging)

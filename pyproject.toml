@@ -12,6 +12,12 @@ dependencies = [
 mazegenerator = { path = "mazegenerator-2.0.2-py3-none-any.whl" }
 mlx = { path = "mlx-2.2-py3-none-any.whl" }
 
+[tool.setuptools]
+py-modules = ["__main__"]
+
+[tool.setuptools.packages.find]
+include = ["pacman*"]
+
 [dependency-groups]
 dev = [
     "flake8>=7.3.0",
